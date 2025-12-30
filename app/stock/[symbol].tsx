@@ -40,79 +40,155 @@ export default function StockDetailScreen() {
 
   // Calculate technical indicators from chart data
   const technicalIndicators = useMemo(() => {
+    const currentPrice = quote?.currentPrice || 0;
+
     if (!chart || !chart.prices.close.length) {
       return {
         rsi: 50,
         macd: { value: 0, signal: 0, histogram: 0 },
-        ema20: quote?.currentPrice || 0,
-        ema50: quote?.currentPrice || 0,
-        ema200: quote?.currentPrice || 0,
+        ema20: currentPrice,
+        ema50: currentPrice,
+        ema200: currentPrice,
         atr: 0,
+        dataQuality: {
+          hasEnoughDataForRSI: false,
+          hasEnoughDataForMACD: false,
+          hasEnoughDataForEMA200: false,
+        },
       };
     }
 
     const closes = chart.prices.close;
     const highs = chart.prices.high;
     const lows = chart.prices.low;
-    
-    // Calculate RSI (14 period)
+    const dataLength = closes.length;
+
+    // Data quality indicators
+    const hasEnoughDataForRSI = dataLength >= 15; // RSI 14 needs at least 15 data points
+    const hasEnoughDataForMACD = dataLength >= 35; // MACD (26+9) needs at least 35 data points
+    const hasEnoughDataForEMA200 = dataLength >= 200;
+
+    // Calculate RSI (14 period) using Wilder's Smoothing
     const rsi = calculateRSI(closes, 14);
-    
-    // Calculate EMA
-    const ema20 = calculateEMA(closes, 20);
-    const ema50 = calculateEMA(closes, 50);
-    const ema200 = calculateEMA(closes, Math.min(200, closes.length));
-    
-    // Calculate ATR
+
+    // Calculate EMA with proper period handling
+    const ema20 = dataLength >= 20 ? calculateEMA(closes, 20) : currentPrice || closes[closes.length - 1];
+    const ema50 = dataLength >= 50 ? calculateEMA(closes, 50) : currentPrice || closes[closes.length - 1];
+
+    // EMA 200: Only calculate if we have enough data, otherwise show current price with warning
+    const ema200 = hasEnoughDataForEMA200
+      ? calculateEMA(closes, 200)
+      : currentPrice || closes[closes.length - 1];
+
+    // Calculate ATR using Wilder's Smoothing
     const atr = calculateATR(highs, lows, closes, 14);
-    
-    // Simplified MACD
-    const ema12 = calculateEMA(closes, 12);
-    const ema26 = calculateEMA(closes, 26);
-    const macdValue = ema12 - ema26;
-    const macdSignal = macdValue * 0.9; // Simplified
-    
+
+    // Calculate MACD properly (EMA 12, EMA 26, Signal EMA 9)
+    const macd = calculateMACD(closes, 12, 26, 9);
+
     return {
       rsi,
-      macd: { value: macdValue, signal: macdSignal, histogram: macdValue - macdSignal },
+      macd,
       ema20,
       ema50,
       ema200,
       atr,
+      dataQuality: {
+        hasEnoughDataForRSI,
+        hasEnoughDataForMACD,
+        hasEnoughDataForEMA200,
+      },
     };
   }, [chart, quote]);
 
-  // Calculate support/resistance from chart data
+  // Calculate support/resistance from chart data using Pivot Points
   const supportResistance = useMemo(() => {
-    const price = quote?.currentPrice || holding?.avgCost || 100;
-    
+    const currentPrice = quote?.currentPrice || holding?.avgCost || 100;
+
     if (chart && chart.prices.high.length > 0) {
       const highs = chart.prices.high;
       const lows = chart.prices.low;
-      const maxHigh = Math.max(...highs);
-      const minLow = Math.min(...lows);
-      
+      const closes = chart.prices.close;
+
+      // Get the most recent period data for Pivot Point calculation
+      const periodHigh = Math.max(...highs.slice(-20)); // Last 20 periods
+      const periodLow = Math.min(...lows.slice(-20));
+      const lastClose = closes[closes.length - 1];
+
+      // Calculate Pivot Points
+      const pivots = calculatePivotPoints(periodHigh, periodLow, lastClose);
+
+      // Find significant historical levels
+      const historicalLevels = findSignificantLevels(highs, lows, closes, currentPrice);
+
+      // Determine strength based on distance from current price and multiple confirmations
+      const getStrength = (level: number, isResistance: boolean): 'weak' | 'moderate' | 'strong' => {
+        const distance = Math.abs(level - currentPrice) / currentPrice;
+        const hasHistoricalConfirmation = isResistance
+          ? historicalLevels.resistance.some(h => Math.abs(h - level) / level < 0.02)
+          : historicalLevels.support.some(h => Math.abs(h - level) / level < 0.02);
+
+        if (hasHistoricalConfirmation) return 'strong';
+        if (distance < 0.03) return 'moderate';
+        return 'weak';
+      };
+
+      // Build resistance levels (above current price)
+      const resistanceLevels: { price: number; strength: 'weak' | 'moderate' | 'strong'; source: string }[] = [];
+
+      if (pivots.r1 > currentPrice) {
+        resistanceLevels.push({ price: pivots.r1, strength: getStrength(pivots.r1, true), source: 'Pivot R1' });
+      }
+      if (pivots.r2 > currentPrice) {
+        resistanceLevels.push({ price: pivots.r2, strength: getStrength(pivots.r2, true), source: 'Pivot R2' });
+      }
+
+      // Add historical resistance levels
+      historicalLevels.resistance.forEach((level, index) => {
+        if (!resistanceLevels.some(r => Math.abs(r.price - level) / level < 0.01)) {
+          resistanceLevels.push({ price: level, strength: 'strong', source: `Historical R${index + 1}` });
+        }
+      });
+
+      // Build support levels (below current price)
+      const supportLevels: { price: number; strength: 'weak' | 'moderate' | 'strong'; source: string }[] = [];
+
+      if (pivots.s1 < currentPrice) {
+        supportLevels.push({ price: pivots.s1, strength: getStrength(pivots.s1, false), source: 'Pivot S1' });
+      }
+      if (pivots.s2 < currentPrice) {
+        supportLevels.push({ price: pivots.s2, strength: getStrength(pivots.s2, false), source: 'Pivot S2' });
+      }
+
+      // Add historical support levels
+      historicalLevels.support.forEach((level, index) => {
+        if (!supportLevels.some(s => Math.abs(s.price - level) / level < 0.01)) {
+          supportLevels.push({ price: level, strength: 'strong', source: `Historical S${index + 1}` });
+        }
+      });
+
+      // Sort and limit
+      resistanceLevels.sort((a, b) => a.price - b.price);
+      supportLevels.sort((a, b) => b.price - a.price);
+
       return {
-        resistance: [
-          { price: price * 1.03, strength: 'moderate' as const },
-          { price: maxHigh, strength: 'strong' as const },
-        ],
-        support: [
-          { price: price * 0.97, strength: 'moderate' as const },
-          { price: minLow, strength: 'strong' as const },
-        ],
+        resistance: resistanceLevels.slice(0, 3).map(r => ({ price: r.price, strength: r.strength })),
+        support: supportLevels.slice(0, 3).map(s => ({ price: s.price, strength: s.strength })),
+        pivot: pivots.pivot,
       };
     }
-    
+
+    // Fallback: Use simple percentage-based levels
     return {
       resistance: [
-        { price: price * 1.05, strength: 'moderate' as const },
-        { price: price * 1.1, strength: 'strong' as const },
+        { price: currentPrice * 1.03, strength: 'weak' as const },
+        { price: currentPrice * 1.05, strength: 'moderate' as const },
       ],
       support: [
-        { price: price * 0.95, strength: 'moderate' as const },
-        { price: price * 0.9, strength: 'strong' as const },
+        { price: currentPrice * 0.97, strength: 'weak' as const },
+        { price: currentPrice * 0.95, strength: 'moderate' as const },
       ],
+      pivot: currentPrice,
     };
   }, [quote, holding, chart]);
 
@@ -307,6 +383,7 @@ export default function StockDetailScreen() {
             {chartLoading && <ActivityIndicator size="small" color={colors.muted} />}
           </View>
           <View className="bg-surface rounded-xl border border-border overflow-hidden">
+            {/* RSI */}
             <View className="flex-row justify-between p-4 border-b border-border">
               <View>
                 <Text className="text-muted text-xs">RSI (14)</Text>
@@ -346,36 +423,61 @@ export default function StockDetailScreen() {
               </View>
             </View>
 
-            <View className="flex-row justify-between p-4 border-b border-border">
-              <View>
-                <Text className="text-muted text-xs">MACD</Text>
-                <Text className="text-foreground text-lg font-semibold">
-                  {technicalIndicators.macd.value.toFixed(2)}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.signalBadge,
-                  {
-                    backgroundColor:
-                      technicalIndicators.macd.histogram > 0
-                        ? colors.success + '20'
-                        : colors.error + '20',
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color:
-                      technicalIndicators.macd.histogram > 0 ? colors.success : colors.error,
-                  }}
-                  className="text-xs font-medium"
+            {/* MACD with Signal and Histogram */}
+            <View className="p-4 border-b border-border">
+              <View className="flex-row justify-between items-start mb-2">
+                <View>
+                  <Text className="text-muted text-xs">MACD (12, 26, 9)</Text>
+                  <Text className="text-foreground text-lg font-semibold">
+                    {technicalIndicators.macd.value.toFixed(2)}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.signalBadge,
+                    {
+                      backgroundColor:
+                        technicalIndicators.macd.histogram > 0
+                          ? colors.success + '20'
+                          : colors.error + '20',
+                    },
+                  ]}
                 >
-                  {technicalIndicators.macd.histogram > 0 ? 'Bullish' : 'Bearish'}
-                </Text>
+                  <Text
+                    style={{
+                      color:
+                        technicalIndicators.macd.histogram > 0 ? colors.success : colors.error,
+                    }}
+                    className="text-xs font-medium"
+                  >
+                    {technicalIndicators.macd.histogram > 0 ? 'Bullish' : 'Bearish'}
+                  </Text>
+                </View>
+              </View>
+              <View className="flex-row justify-between">
+                <View>
+                  <Text className="text-muted text-xs">Signal</Text>
+                  <Text className="text-foreground font-medium">
+                    {technicalIndicators.macd.signal.toFixed(2)}
+                  </Text>
+                </View>
+                <View className="items-end">
+                  <Text className="text-muted text-xs">Histogram</Text>
+                  <Text
+                    style={{
+                      color:
+                        technicalIndicators.macd.histogram > 0 ? colors.success : colors.error,
+                    }}
+                    className="font-medium"
+                  >
+                    {technicalIndicators.macd.histogram > 0 ? '+' : ''}
+                    {technicalIndicators.macd.histogram.toFixed(2)}
+                  </Text>
+                </View>
               </View>
             </View>
 
+            {/* Moving Averages */}
             <View className="p-4 border-b border-border">
               <Text className="text-muted text-xs mb-2">Moving Averages</Text>
               <View className="flex-row justify-between">
@@ -392,14 +494,22 @@ export default function StockDetailScreen() {
                   </Text>
                 </View>
                 <View className="items-center">
-                  <Text className="text-muted text-xs">EMA 200</Text>
+                  <Text className="text-muted text-xs">
+                    EMA 200{!technicalIndicators.dataQuality?.hasEnoughDataForEMA200 ? '*' : ''}
+                  </Text>
                   <Text className="text-foreground font-medium">
                     ${technicalIndicators.ema200.toFixed(2)}
                   </Text>
                 </View>
               </View>
+              {!technicalIndicators.dataQuality?.hasEnoughDataForEMA200 && (
+                <Text className="text-muted text-xs mt-2 italic">
+                  * Insufficient data for accurate EMA 200 (needs 200+ data points)
+                </Text>
+              )}
             </View>
 
+            {/* ATR */}
             <View className="flex-row justify-between p-4">
               <View>
                 <Text className="text-muted text-xs">ATR (14)</Text>
@@ -416,45 +526,90 @@ export default function StockDetailScreen() {
         <View className="px-5 py-4">
           <Text className="text-foreground text-lg font-semibold mb-3">Support & Resistance</Text>
           <View className="bg-surface rounded-xl border border-border overflow-hidden">
+            {/* Pivot Point */}
+            {supportResistance.pivot && (
+              <View className="p-4 border-b border-border bg-surface">
+                <View className="flex-row justify-between items-center">
+                  <View>
+                    <Text className="text-muted text-xs">Pivot Point</Text>
+                    <Text className="text-foreground text-lg font-semibold">
+                      ${supportResistance.pivot.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.signalBadge,
+                      { backgroundColor: colors.tint + '20' },
+                    ]}
+                  >
+                    <Text style={{ color: colors.tint }} className="text-xs font-medium">
+                      {quote?.currentPrice && supportResistance.pivot
+                        ? quote.currentPrice > supportResistance.pivot
+                          ? 'Above Pivot'
+                          : 'Below Pivot'
+                        : 'Key Level'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Resistance Levels */}
             <View className="p-4 border-b border-border">
               <Text className="text-error text-xs font-medium mb-2">Resistance Levels</Text>
-              {supportResistance.resistance.map((level, index) => (
-                <View key={index} className="flex-row justify-between items-center mb-1">
-                  <Text className="text-foreground">${level.price.toFixed(2)}</Text>
-                  <View
-                    style={[
-                      styles.strengthBadge,
-                      {
-                        backgroundColor:
-                          level.strength === 'strong' ? colors.error + '30' : colors.error + '15',
-                      },
-                    ]}
-                  >
-                    <Text className="text-error text-xs capitalize">{level.strength}</Text>
+              {supportResistance.resistance.length > 0 ? (
+                supportResistance.resistance.map((level, index) => (
+                  <View key={index} className="flex-row justify-between items-center mb-1">
+                    <Text className="text-foreground">${level.price.toFixed(2)}</Text>
+                    <View
+                      style={[
+                        styles.strengthBadge,
+                        {
+                          backgroundColor:
+                            level.strength === 'strong'
+                              ? colors.error + '30'
+                              : level.strength === 'moderate'
+                                ? colors.error + '20'
+                                : colors.error + '10',
+                        },
+                      ]}
+                    >
+                      <Text className="text-error text-xs capitalize">{level.strength}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))
+              ) : (
+                <Text className="text-muted text-xs">No resistance levels found</Text>
+              )}
             </View>
+
+            {/* Support Levels */}
             <View className="p-4">
               <Text className="text-success text-xs font-medium mb-2">Support Levels</Text>
-              {supportResistance.support.map((level, index) => (
-                <View key={index} className="flex-row justify-between items-center mb-1">
-                  <Text className="text-foreground">${level.price.toFixed(2)}</Text>
-                  <View
-                    style={[
-                      styles.strengthBadge,
-                      {
-                        backgroundColor:
-                          level.strength === 'strong'
-                            ? colors.success + '30'
-                            : colors.success + '15',
-                      },
-                    ]}
-                  >
-                    <Text className="text-success text-xs capitalize">{level.strength}</Text>
+              {supportResistance.support.length > 0 ? (
+                supportResistance.support.map((level, index) => (
+                  <View key={index} className="flex-row justify-between items-center mb-1">
+                    <Text className="text-foreground">${level.price.toFixed(2)}</Text>
+                    <View
+                      style={[
+                        styles.strengthBadge,
+                        {
+                          backgroundColor:
+                            level.strength === 'strong'
+                              ? colors.success + '30'
+                              : level.strength === 'moderate'
+                                ? colors.success + '20'
+                                : colors.success + '10',
+                        },
+                      ]}
+                    >
+                      <Text className="text-success text-xs capitalize">{level.strength}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))
+              ) : (
+                <Text className="text-muted text-xs">No support levels found</Text>
+              )}
             </View>
           </View>
         </View>
@@ -507,45 +662,143 @@ export default function StockDetailScreen() {
 }
 
 // Helper functions for technical analysis
+
+/**
+ * Calculate RSI using Wilder's Smoothing Method (standard)
+ * Uses Exponential Moving Average for smoothing gains/losses
+ */
 function calculateRSI(prices: number[], period: number): number {
   if (prices.length < period + 1) return 50;
-  
-  let gains = 0;
-  let losses = 0;
-  
-  for (let i = prices.length - period; i < prices.length; i++) {
-    const change = prices[i] - prices[i - 1];
-    if (change > 0) gains += change;
-    else losses -= change;
+
+  // Calculate price changes
+  const changes: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    changes.push(prices[i] - prices[i - 1]);
   }
-  
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-  
+
+  // First average (SMA for initial value)
+  let avgGain = 0;
+  let avgLoss = 0;
+
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) avgGain += changes[i];
+    else avgLoss += Math.abs(changes[i]);
+  }
+
+  avgGain /= period;
+  avgLoss /= period;
+
+  // Apply Wilder's Smoothing for remaining periods
+  const smoothingFactor = (period - 1) / period;
+
+  for (let i = period; i < changes.length; i++) {
+    const change = changes[i];
+    if (change > 0) {
+      avgGain = avgGain * smoothingFactor + change / period;
+      avgLoss = avgLoss * smoothingFactor;
+    } else {
+      avgGain = avgGain * smoothingFactor;
+      avgLoss = avgLoss * smoothingFactor + Math.abs(change) / period;
+    }
+  }
+
   if (avgLoss === 0) return 100;
   const rs = avgGain / avgLoss;
   return 100 - (100 / (1 + rs));
 }
 
+/**
+ * Calculate EMA (Exponential Moving Average)
+ * Returns the final EMA value
+ */
 function calculateEMA(prices: number[], period: number): number {
   if (prices.length === 0) return 0;
   if (prices.length < period) return prices[prices.length - 1];
-  
+
   const multiplier = 2 / (period + 1);
   let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  
+
   for (let i = period; i < prices.length; i++) {
     ema = (prices[i] - ema) * multiplier + ema;
   }
-  
+
   return ema;
 }
 
+/**
+ * Calculate EMA series (returns array of EMA values)
+ * Used for MACD Signal line calculation
+ */
+function calculateEMASeries(prices: number[], period: number): number[] {
+  if (prices.length === 0) return [];
+  if (prices.length < period) return prices.map(() => prices[prices.length - 1]);
+
+  const multiplier = 2 / (period + 1);
+  const emaSeries: number[] = [];
+
+  // First EMA is SMA of first 'period' values
+  let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+
+  // Fill initial values with SMA
+  for (let i = 0; i < period; i++) {
+    emaSeries.push(ema);
+  }
+
+  // Calculate EMA for remaining values
+  for (let i = period; i < prices.length; i++) {
+    ema = (prices[i] - ema) * multiplier + ema;
+    emaSeries.push(ema);
+  }
+
+  return emaSeries;
+}
+
+/**
+ * Calculate MACD (Moving Average Convergence Divergence)
+ * Returns MACD line, Signal line, and Histogram
+ */
+function calculateMACD(prices: number[], fastPeriod = 12, slowPeriod = 26, signalPeriod = 9): {
+  value: number;
+  signal: number;
+  histogram: number;
+} {
+  if (prices.length < slowPeriod + signalPeriod) {
+    return { value: 0, signal: 0, histogram: 0 };
+  }
+
+  // Calculate EMA series for fast and slow periods
+  const emaFastSeries = calculateEMASeries(prices, fastPeriod);
+  const emaSlowSeries = calculateEMASeries(prices, slowPeriod);
+
+  // Calculate MACD line series (Fast EMA - Slow EMA)
+  const macdLineSeries: number[] = [];
+  for (let i = 0; i < prices.length; i++) {
+    macdLineSeries.push(emaFastSeries[i] - emaSlowSeries[i]);
+  }
+
+  // Calculate Signal line (EMA of MACD line)
+  const signalSeries = calculateEMASeries(macdLineSeries, signalPeriod);
+
+  // Get latest values
+  const macdValue = macdLineSeries[macdLineSeries.length - 1];
+  const signalValue = signalSeries[signalSeries.length - 1];
+  const histogram = macdValue - signalValue;
+
+  return {
+    value: macdValue,
+    signal: signalValue,
+    histogram: histogram,
+  };
+}
+
+/**
+ * Calculate ATR using Wilder's Smoothing Method
+ */
 function calculateATR(highs: number[], lows: number[], closes: number[], period: number): number {
   if (highs.length < period + 1) return 0;
-  
+
+  // Calculate True Range series
   const trueRanges: number[] = [];
-  
   for (let i = 1; i < highs.length; i++) {
     const tr = Math.max(
       highs[i] - lows[i],
@@ -554,9 +807,88 @@ function calculateATR(highs: number[], lows: number[], closes: number[], period:
     );
     trueRanges.push(tr);
   }
-  
-  const recentTRs = trueRanges.slice(-period);
-  return recentTRs.reduce((a, b) => a + b, 0) / recentTRs.length;
+
+  if (trueRanges.length < period) {
+    return trueRanges.reduce((a, b) => a + b, 0) / trueRanges.length;
+  }
+
+  // First ATR is SMA of first 'period' True Ranges
+  let atr = trueRanges.slice(0, period).reduce((a, b) => a + b, 0) / period;
+
+  // Apply Wilder's Smoothing for remaining periods
+  for (let i = period; i < trueRanges.length; i++) {
+    atr = (atr * (period - 1) + trueRanges[i]) / period;
+  }
+
+  return atr;
+}
+
+/**
+ * Calculate Pivot Points for Support & Resistance
+ * Uses Standard Pivot Point formula
+ */
+function calculatePivotPoints(high: number, low: number, close: number): {
+  pivot: number;
+  r1: number;
+  r2: number;
+  r3: number;
+  s1: number;
+  s2: number;
+  s3: number;
+} {
+  const pivot = (high + low + close) / 3;
+
+  return {
+    pivot,
+    r1: 2 * pivot - low,
+    r2: pivot + (high - low),
+    r3: high + 2 * (pivot - low),
+    s1: 2 * pivot - high,
+    s2: pivot - (high - low),
+    s3: low - 2 * (high - pivot),
+  };
+}
+
+/**
+ * Find significant price levels from historical data
+ * Identifies areas where price has reversed multiple times
+ */
+function findSignificantLevels(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  currentPrice: number,
+  tolerance = 0.02
+): { support: number[]; resistance: number[] } {
+  const allPrices = [...highs, ...lows];
+  const support: number[] = [];
+  const resistance: number[] = [];
+
+  // Group similar price levels
+  const priceClusters: Map<number, number> = new Map();
+
+  allPrices.forEach(price => {
+    // Round to tolerance level
+    const rounded = Math.round(price / (currentPrice * tolerance)) * (currentPrice * tolerance);
+    priceClusters.set(rounded, (priceClusters.get(rounded) || 0) + 1);
+  });
+
+  // Find clusters with multiple touches (at least 2)
+  priceClusters.forEach((count, price) => {
+    if (count >= 2) {
+      if (price < currentPrice) {
+        support.push(price);
+      } else {
+        resistance.push(price);
+      }
+    }
+  });
+
+  // Sort levels
+  support.sort((a, b) => b - a); // Descending (closest to current price first)
+  resistance.sort((a, b) => a - b); // Ascending (closest to current price first)
+
+  return { support: support.slice(0, 3), resistance: resistance.slice(0, 3) };
 }
 
 const styles = StyleSheet.create({
