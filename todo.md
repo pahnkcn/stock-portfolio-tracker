@@ -178,3 +178,9 @@
 - [x] เพิ่ม Confirmation dialog ก่อนลบ
 - [x] อัพเดท Holdings เมื่อแก้ไข/ลบ transaction
 - [x] Unit tests สำหรับ edit/delete functionality (23 tests passed)
+
+
+## Success Popup for Edit/Delete Transaction
+
+- [x] เพิ่ม Success Popup หลัง Update transaction สำเร็จ
+- [x] เพิ่ม Success Popup หลัง Delete transaction สำเร็จ

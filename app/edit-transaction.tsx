@@ -4,7 +4,6 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Alert,
   StyleSheet,
   Platform,
   Modal,
@@ -18,6 +17,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ScreenContainer } from '@/components/screen-container';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/use-colors';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 export default function EditTransactionScreen() {
   const colors = useColors();
@@ -39,6 +39,8 @@ export default function EditTransactionScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successType, setSuccessType] = useState<'update' | 'delete'>('update');
 
   // Load transaction data
   useEffect(() => {
@@ -83,15 +85,12 @@ export default function EditTransactionScreen() {
   const handleUpdate = async () => {
     // Validation
     if (!symbol.trim()) {
-      Alert.alert('Error', 'Please enter a stock symbol');
       return;
     }
     if (!shares || parseFloat(shares) <= 0) {
-      Alert.alert('Error', 'Please enter a valid number of shares');
       return;
     }
     if (!price || parseFloat(price) <= 0) {
-      Alert.alert('Error', 'Please enter a valid price');
       return;
     }
 
@@ -117,12 +116,18 @@ export default function EditTransactionScreen() {
       // Recalculate holdings
       await recalculateHoldings();
 
-      Alert.alert('Success', 'Transaction updated successfully', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      // Show success modal
+      setSuccessType('update');
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error updating transaction:', error);
-      Alert.alert('Error', 'Failed to update transaction');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -142,12 +147,18 @@ export default function EditTransactionScreen() {
       // Recalculate holdings
       await recalculateHoldings();
 
-      Alert.alert('Deleted', 'Transaction has been deleted', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      // Show success modal
+      setSuccessType('delete');
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error deleting transaction:', error);
-      Alert.alert('Error', 'Failed to delete transaction');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -204,6 +215,16 @@ export default function EditTransactionScreen() {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const handleGoBack = () => {
+    setShowSuccessModal(false);
+    router.back();
+  };
+
+  const handleGoToJournal = () => {
+    setShowSuccessModal(false);
+    router.replace('/(tabs)/journal' as any);
   };
 
   return (
@@ -464,24 +485,73 @@ export default function EditTransactionScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.error + '20' }]}>
+              <IconSymbol name="trash.fill" size={32} color={colors.error} />
+            </View>
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>
               Delete Transaction?
             </Text>
-            <Text style={[styles.modalMessage, { color: colors.foreground, opacity: 0.7 }]}>
+            <Text style={[styles.modalMessage, { color: colors.muted }]}>
               This action cannot be undone. The transaction will be permanently deleted.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 onPress={() => setShowDeleteConfirm(false)}
-                style={[styles.modalButton, { backgroundColor: colors.background }]}
+                style={[styles.modalButton, styles.modalButtonSecondary, { borderColor: colors.border }]}
               >
-                <Text style={[styles.modalButtonText, { color: colors.foreground }]}>Cancel</Text>
+                <Text style={[styles.modalButtonTextSecondary, { color: colors.foreground }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleDelete}
                 style={[styles.modalButton, { backgroundColor: colors.error }]}
               >
-                <Text style={[styles.modalButtonText, { color: '#fff' }]}>Delete</Text>
+                <Text style={styles.modalButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleGoBack}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <View style={[styles.iconCircle, { backgroundColor: successType === 'update' ? colors.success + '20' : colors.warning + '20' }]}>
+              <IconSymbol 
+                name={successType === 'update' ? 'checkmark.circle.fill' : 'trash.fill'} 
+                size={40} 
+                color={successType === 'update' ? colors.success : colors.warning} 
+              />
+            </View>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              {successType === 'update' ? 'Transaction Updated!' : 'Transaction Deleted!'}
+            </Text>
+            <Text style={[styles.modalMessage, { color: colors.muted }]}>
+              {successType === 'update' 
+                ? `${type} ${shares} shares of ${symbol.toUpperCase()} at $${price}`
+                : `The transaction has been removed from your journal.`
+              }
+            </Text>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={handleGoToJournal}
+                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.modalButtonText}>Go to Journal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleGoBack}
+                style={[styles.modalButton, styles.modalButtonSecondary, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.modalButtonTextSecondary, { color: colors.foreground }]}>
+                  Back to Dashboard
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -615,14 +685,23 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 340,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
+    alignItems: 'center',
+  },
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   modalMessage: {
     fontSize: 15,
@@ -631,16 +710,25 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   modalButtons: {
-    flexDirection: 'row',
+    width: '100%',
     gap: 12,
   },
   modalButton: {
-    flex: 1,
+    width: '100%',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  modalButtonTextSecondary: {
     fontSize: 16,
     fontWeight: '600',
   },
