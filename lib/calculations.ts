@@ -95,10 +95,15 @@ export function calculatePerformanceStats(transactions: Transaction[]): Performa
 
   // Calculate P&L for each closed position
   for (const [, txs] of positionsBySymbol) {
-    const buys = txs.filter(t => t.type === 'BUY');
-    const sells = txs.filter(t => t.type === 'SELL');
+    // Sort transactions by date for proper FIFO matching
+    const sortedTxs = [...txs].sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
 
-    if (sells.length === 0) continue;
+    const buys = sortedTxs.filter(t => t.type === 'BUY');
+    const sells = sortedTxs.filter(t => t.type === 'SELL');
+
+    if (sells.length === 0 || buys.length === 0) continue;
 
     // Simple FIFO matching
     let buyIndex = 0;

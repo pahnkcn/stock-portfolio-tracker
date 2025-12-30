@@ -165,10 +165,22 @@ export default function EditTransactionScreen() {
   };
 
   const recalculateHoldings = async () => {
-    // Get all transactions for this symbol
-    const symbolTransactions = state.transactions.filter(
+    // Get all transactions for this symbol (excluding the one being edited)
+    const otherTransactions = state.transactions.filter(
       t => t.symbol === transaction.symbol && t.id !== id
     );
+
+    // Create the edited transaction with new values
+    const editedTransaction = {
+      type,
+      symbol: symbol.toUpperCase().trim(),
+      shares: parseFloat(shares) || 0,
+      price: parseFloat(price) || 0,
+      exchangeRate: parseFloat(exchangeRate) || 35,
+    };
+
+    // Combine other transactions with the edited one
+    const allTransactions = [...otherTransactions, editedTransaction];
 
     // Find the holding for this symbol
     const holding = state.holdings.find(
@@ -179,13 +191,14 @@ export default function EditTransactionScreen() {
       // Recalculate shares and average cost
       let totalShares = 0;
       let totalCost = 0;
-      let totalExchangeRateCost = 0;
+      let totalCostThb = 0;
 
-      symbolTransactions.forEach(t => {
+      allTransactions.forEach(t => {
         if (t.type === 'BUY') {
           totalShares += t.shares;
           totalCost += t.shares * t.price;
-          totalExchangeRateCost += t.shares * (t.exchangeRate || 35);
+          // Weighted average exchange rate: use cost basis (shares * price * rate)
+          totalCostThb += t.shares * t.price * (t.exchangeRate || 35);
         } else {
           totalShares -= t.shares;
         }
@@ -203,7 +216,8 @@ export default function EditTransactionScreen() {
         await updateHolding(holding.id, {
           shares: totalShares,
           avgCost: totalCost / totalShares,
-          avgExchangeRate: totalExchangeRateCost / totalShares,
+          // Exchange rate weighted by cost basis, not shares
+          avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
         });
       }
     }

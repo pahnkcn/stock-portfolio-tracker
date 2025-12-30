@@ -14,6 +14,9 @@ export interface CompletedTrade {
   sellPrice: number;
   buyCost: number;
   sellProceeds: number;
+  buyCommission: number;
+  sellCommission: number;
+  totalCommission: number;
   realizedPnL: number;
   realizedPnLPercent: number;
   holdingDays: number;
@@ -147,12 +150,24 @@ export function calculateTradingPerformance(
         }
 
         const matchedShares = Math.min(sellSharesRemaining, buyLot.remainingShares);
-        
-        // Calculate P&L for this matched portion
+
+        // Calculate P&L for this matched portion (including proportional commission)
         const buyCost = matchedShares * buyLot.tx.price;
         const sellProceeds = matchedShares * sell.price;
-        const realizedPnL = sellProceeds - buyCost;
-        const realizedPnLPercent = buyCost > 0 ? (realizedPnL / buyCost) * 100 : 0;
+
+        // Proportional commission based on matched shares
+        const buyCommission = buyLot.tx.shares > 0
+          ? (matchedShares / buyLot.tx.shares) * (buyLot.tx.commission || 0)
+          : 0;
+        const sellCommission = sell.shares > 0
+          ? (matchedShares / sell.shares) * (sell.commission || 0)
+          : 0;
+        const totalCommission = buyCommission + sellCommission;
+
+        // Realized P&L = Sell Proceeds - Buy Cost - Total Commission
+        const realizedPnL = sellProceeds - buyCost - totalCommission;
+        const costBasis = buyCost + buyCommission;
+        const realizedPnLPercent = costBasis > 0 ? (realizedPnL / costBasis) * 100 : 0;
         const holdingDays = daysBetween(buyLot.tx.date, sell.date);
 
         completedTrades.push({
@@ -166,6 +181,9 @@ export function calculateTradingPerformance(
           sellPrice: sell.price,
           buyCost,
           sellProceeds,
+          buyCommission,
+          sellCommission,
+          totalCommission,
           realizedPnL,
           realizedPnLPercent,
           holdingDays,
@@ -337,18 +355,20 @@ export function calculateMonthlyPerformance(
 
 /**
  * Calculate performance by symbol
+ * Uses weighted average return based on cost basis (more accurate than simple average)
  */
 export function calculateSymbolPerformance(
   completedTrades: CompletedTrade[]
-): Record<string, { trades: number; pnl: number; winRate: number; avgReturn: number }> {
-  const bySymbol: Record<string, { wins: number; losses: number; pnl: number; totalReturn: number }> = {};
+): Record<string, { trades: number; pnl: number; winRate: number; avgReturn: number; totalCost: number }> {
+  const bySymbol: Record<string, { wins: number; losses: number; pnl: number; totalCost: number }> = {};
 
   for (const trade of completedTrades) {
     if (!bySymbol[trade.symbol]) {
-      bySymbol[trade.symbol] = { wins: 0, losses: 0, pnl: 0, totalReturn: 0 };
+      bySymbol[trade.symbol] = { wins: 0, losses: 0, pnl: 0, totalCost: 0 };
     }
     bySymbol[trade.symbol].pnl += trade.realizedPnL;
-    bySymbol[trade.symbol].totalReturn += trade.realizedPnLPercent;
+    // Track total cost for weighted average calculation
+    bySymbol[trade.symbol].totalCost += trade.buyCost + (trade.buyCommission || 0);
     if (trade.isWin) {
       bySymbol[trade.symbol].wins++;
     } else if (trade.realizedPnL < 0) {
@@ -356,14 +376,16 @@ export function calculateSymbolPerformance(
     }
   }
 
-  const result: Record<string, { trades: number; pnl: number; winRate: number; avgReturn: number }> = {};
+  const result: Record<string, { trades: number; pnl: number; winRate: number; avgReturn: number; totalCost: number }> = {};
   for (const [symbol, data] of Object.entries(bySymbol)) {
     const totalTrades = data.wins + data.losses;
     result[symbol] = {
       trades: totalTrades,
       pnl: data.pnl,
       winRate: totalTrades > 0 ? (data.wins / totalTrades) * 100 : 0,
-      avgReturn: totalTrades > 0 ? data.totalReturn / totalTrades : 0,
+      // Weighted average return: total P&L / total cost basis
+      avgReturn: data.totalCost > 0 ? (data.pnl / data.totalCost) * 100 : 0,
+      totalCost: data.totalCost,
     };
   }
 

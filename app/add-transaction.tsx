@@ -193,12 +193,62 @@ export default function AddTransactionScreen() {
             ],
           });
         } else {
-          // SELL - reduce shares
+          // SELL - reduce shares using FIFO and recalculate avgCost
           const newShares = existingHolding.shares - sharesNum;
+
           if (newShares <= 0) {
-            await updateHolding(existingHolding.id, { shares: 0 });
+            // All shares sold - reset holding
+            await updateHolding(existingHolding.id, {
+              shares: 0,
+              avgCost: 0,
+              avgExchangeRate: 35,
+              lots: [],
+            });
           } else {
-            await updateHolding(existingHolding.id, { shares: newShares });
+            // FIFO: Remove shares from oldest lots first
+            let sharesToSell = sharesNum;
+            const updatedLots = [];
+
+            // Sort lots by date (oldest first) for FIFO
+            const sortedLots = [...existingHolding.lots].sort(
+              (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+            );
+
+            for (const lot of sortedLots) {
+              if (sharesToSell <= 0) {
+                // No more shares to sell, keep this lot as-is
+                updatedLots.push(lot);
+              } else if (sharesToSell >= lot.shares) {
+                // Sell entire lot
+                sharesToSell -= lot.shares;
+                // Don't add this lot (it's fully sold)
+              } else {
+                // Partial sell from this lot
+                updatedLots.push({
+                  ...lot,
+                  shares: lot.shares - sharesToSell,
+                });
+                sharesToSell = 0;
+              }
+            }
+
+            // Recalculate avgCost and avgExchangeRate from remaining lots
+            const totalRemainingShares = updatedLots.reduce((sum, lot) => sum + lot.shares, 0);
+            const totalRemainingCost = updatedLots.reduce((sum, lot) => sum + lot.shares * lot.price, 0);
+            const totalRemainingCostThb = updatedLots.reduce(
+              (sum, lot) => sum + lot.shares * lot.price * (lot.exchangeRate || 35),
+              0
+            );
+
+            const newAvgCost = totalRemainingShares > 0 ? totalRemainingCost / totalRemainingShares : 0;
+            const newAvgExchangeRate = totalRemainingCost > 0 ? totalRemainingCostThb / totalRemainingCost : 35;
+
+            await updateHolding(existingHolding.id, {
+              shares: totalRemainingShares,
+              avgCost: newAvgCost,
+              avgExchangeRate: newAvgExchangeRate,
+              lots: updatedLots,
+            });
           }
         }
       } else if (transactionType === 'BUY') {

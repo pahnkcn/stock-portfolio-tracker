@@ -2,6 +2,7 @@
 
 # dependencies
 node_modules/
+.pnpm-store/
 
 # Expo
 .expo/
@@ -25,13 +26,18 @@ expo-env.d.ts
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.*
 
 # macOS
 .DS_Store
 *.pem
 
 # local env files
+.env
+.env.local
 .env*.local
+.env.development
+.env.production
 
 # typescript
 *.tsbuildinfo
@@ -50,13 +56,32 @@ app-example
 *~
 
 # Logs
-logs
+logs/
 *.log
 
 # OS
 Thumbs.db
+Desktop.ini
+ehthumbs.db
 
 # Build files
 *.tgz
 *.tar.gz
 .cache/
+
+# Testing
+coverage/
+
+# Database / Drizzle
+drizzle/
+*.sqlite
+*.sqlite3
+*.db
+
+# Claude Code
+.claude/
+
+# Misc
+*.bak
+*.tmp
+*.temp
