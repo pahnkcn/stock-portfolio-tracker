@@ -138,3 +138,10 @@
 ## Bug Fixes
 
 - [x] แก้ไข avgPurchaseRate undefined ในหน้า Analytics
+
+## Yahoo API Key & Manual Refresh
+
+- [x] เพิ่ม Yahoo Finance API Key ในหน้า Settings
+- [x] แก้ไขจาก auto-refresh เป็น manual refresh
+- [x] เพิ่มปุ่ม Refresh ให้ผู้ใช้กดเอง
+- [x] ลบ interval auto-refresh ออก

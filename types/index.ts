@@ -261,4 +261,5 @@ export interface ApiKeys {
   finnhub?: string;
   polygonIo?: string;
   twelveData?: string;
+  yahooFinance?: string;
 }

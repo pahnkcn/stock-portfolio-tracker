@@ -28,6 +28,13 @@ interface ApiKeyConfig {
 
 const API_KEYS_CONFIG: ApiKeyConfig[] = [
   {
+    key: 'yahooFinance',
+    name: 'Yahoo Finance (RapidAPI)',
+    description: 'Free tier: 500 requests/month via RapidAPI',
+    placeholder: 'Enter your RapidAPI key for Yahoo Finance',
+    docsUrl: 'https://rapidapi.com/sparior/api/yahoo-finance15',
+  },
+  {
     key: 'alphaVantage',
     name: 'Alpha Vantage',
     description: 'Free stock data API with 25 requests/day',

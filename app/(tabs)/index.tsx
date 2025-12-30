@@ -1,5 +1,6 @@
-import { ScrollView, Text, View, RefreshControl, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import { ScrollView, Text, View, RefreshControl, ActivityIndicator, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -39,11 +40,8 @@ export default function DashboardScreen() {
     return { opacity, transform: [{ translateY }] };
   });
 
-  // Use real-time stock quotes with auto-refresh every 60 seconds
-  const { quotes, isLoading: quotesLoading, isFetching, refresh: refreshQuotes, lastUpdated, hasApiKey } = useStockQuotes({
-    refreshInterval: 60000,
-    autoRefresh: true,
-  });
+  // Use stock quotes with manual refresh only
+  const { quotes, isLoading: quotesLoading, isFetching, refresh: refreshQuotes, lastUpdated, hasApiKey, hasSymbols } = useStockQuotes();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -167,8 +165,27 @@ export default function DashboardScreen() {
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Holdings</Text>
               <View style={styles.sectionHeaderRight}>
-                {quotesLoading && state.holdings.length > 0 && (
-                  <ActivityIndicator size="small" color={colors.muted} style={{ marginRight: 8 }} />
+                {/* Refresh Prices Button */}
+                {hasApiKey && hasSymbols && (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      if (Platform.OS !== 'web') {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }
+                      await refreshQuotes();
+                    }}
+                    disabled={isFetching}
+                    style={[
+                      styles.refreshButton,
+                      { backgroundColor: colors.primary + '15', opacity: isFetching ? 0.5 : 1 },
+                    ]}
+                  >
+                    {isFetching ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Text style={[styles.refreshButtonText, { color: colors.primary }]}>↻ Refresh</Text>
+                    )}
+                  </TouchableOpacity>
                 )}
                 <View style={[styles.countBadge, { backgroundColor: colors.primary + '15' }]}>
                   <Text style={[styles.countText, { color: colors.primary }]}>
@@ -406,6 +423,18 @@ const styles = StyleSheet.create({
   sectionHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  refreshButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   countBadge: {
     paddingHorizontal: 10,

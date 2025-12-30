@@ -1,38 +1,32 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useApp } from '@/context/AppContext';
 import type { StockQuote } from '@/types';
 
-interface UseStockQuotesOptions {
-  /** Auto-refresh interval in milliseconds (default: 60000 = 1 minute) */
-  refreshInterval?: number;
-  /** Enable auto-refresh (default: true) */
-  autoRefresh?: boolean;
-}
-
-export function useStockQuotes(options: UseStockQuotesOptions = {}) {
-  const { refreshInterval = 60000, autoRefresh = true } = options;
+export function useStockQuotes() {
   const { state, dispatch } = useApp();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Get unique symbols from holdings
-  const symbols = [...new Set(state.holdings.map((h) => h.symbol))];
+  const symbols = [...new Set(state.holdings.filter(h => h.shares > 0).map((h) => h.symbol))];
   
-  // Check if any API key is configured
+  // Check if any API key is configured (including Yahoo Finance)
   const hasApiKey = !!(
+    state.settings.apiKeys?.yahooFinance ||
     state.settings.apiKeys?.alphaVantage ||
     state.settings.apiKeys?.finnhub ||
     state.settings.apiKeys?.twelveData ||
     state.settings.apiKeys?.polygonIo
   );
 
-  // tRPC query for multiple quotes - only enabled if API key is configured
+  // tRPC query for multiple quotes - manual fetch only, no auto-refresh
   const quotesQuery = trpc.stock.getMultipleQuotes.useQuery(
     { symbols },
     {
-      enabled: symbols.length > 0 && hasApiKey,
-      staleTime: 30000, // Consider data stale after 30 seconds
+      enabled: false, // Disable auto-fetch, only manual refresh
+      staleTime: Infinity, // Never consider data stale automatically
       refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
     }
   );
 
@@ -62,28 +56,13 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
     }
   }, [quotesQuery.data, dispatch]);
 
-  // Auto-refresh logic - only if API key is configured
-  useEffect(() => {
-    if (autoRefresh && symbols.length > 0 && hasApiKey) {
-      intervalRef.current = setInterval(() => {
-        quotesQuery.refetch();
-      }, refreshInterval);
-
-      return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-      };
-    }
-  }, [autoRefresh, refreshInterval, symbols.length, hasApiKey, quotesQuery]);
-
-  // Manual refresh function
-  const refresh = useCallback(() => {
-    if (!hasApiKey) {
-      return Promise.resolve(null);
+  // Manual refresh function - only works if API key is configured and has symbols
+  const refresh = useCallback(async () => {
+    if (!hasApiKey || symbols.length === 0) {
+      return null;
     }
     return quotesQuery.refetch();
-  }, [quotesQuery, hasApiKey]);
+  }, [quotesQuery, hasApiKey, symbols.length]);
 
   return {
     quotes: state.stockQuotes,
@@ -92,6 +71,7 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
     error: quotesQuery.error,
     refresh,
     hasApiKey,
+    hasSymbols: symbols.length > 0,
     lastUpdated: quotesQuery.dataUpdatedAt
       ? new Date(quotesQuery.dataUpdatedAt).toISOString()
       : null,
@@ -99,13 +79,14 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
 }
 
 /**
- * Hook to fetch a single stock quote - only if API key is configured
+ * Hook to fetch a single stock quote - manual refresh only
  */
 export function useStockQuote(symbol: string) {
   const { state } = useApp();
   
-  // Check if any API key is configured
+  // Check if any API key is configured (including Yahoo Finance)
   const hasApiKey = !!(
+    state.settings.apiKeys?.yahooFinance ||
     state.settings.apiKeys?.alphaVantage ||
     state.settings.apiKeys?.finnhub ||
     state.settings.apiKeys?.twelveData ||
@@ -115,22 +96,31 @@ export function useStockQuote(symbol: string) {
   const quoteQuery = trpc.stock.getQuote.useQuery(
     { symbol },
     {
-      enabled: !!symbol && hasApiKey,
-      staleTime: 30000,
+      enabled: false, // Disable auto-fetch
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
     }
   );
+
+  const refresh = useCallback(() => {
+    if (!hasApiKey || !symbol) {
+      return Promise.resolve(null);
+    }
+    return quoteQuery.refetch();
+  }, [quoteQuery, hasApiKey, symbol]);
 
   return {
     quote: quoteQuery.data,
     isLoading: quoteQuery.isLoading,
     error: quoteQuery.error,
-    refresh: quoteQuery.refetch,
+    refresh,
     hasApiKey,
   };
 }
 
 /**
- * Hook to fetch stock chart data - only if API key is configured
+ * Hook to fetch stock chart data - manual refresh only
  */
 export function useStockChart(
   symbol: string,
@@ -139,8 +129,9 @@ export function useStockChart(
 ) {
   const { state } = useApp();
   
-  // Check if any API key is configured
+  // Check if any API key is configured (including Yahoo Finance)
   const hasApiKey = !!(
+    state.settings.apiKeys?.yahooFinance ||
     state.settings.apiKeys?.alphaVantage ||
     state.settings.apiKeys?.finnhub ||
     state.settings.apiKeys?.twelveData ||
@@ -150,16 +141,25 @@ export function useStockChart(
   const chartQuery = trpc.stock.getChart.useQuery(
     { symbol, interval, range },
     {
-      enabled: !!symbol && hasApiKey,
-      staleTime: 60000, // Chart data stale after 1 minute
+      enabled: false, // Disable auto-fetch
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
     }
   );
+
+  const refresh = useCallback(() => {
+    if (!hasApiKey || !symbol) {
+      return Promise.resolve(null);
+    }
+    return chartQuery.refetch();
+  }, [chartQuery, hasApiKey, symbol]);
 
   return {
     chart: chartQuery.data,
     isLoading: chartQuery.isLoading,
     error: chartQuery.error,
-    refresh: chartQuery.refetch,
+    refresh,
     hasApiKey,
   };
 }
