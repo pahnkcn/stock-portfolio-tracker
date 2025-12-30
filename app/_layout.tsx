@@ -8,6 +8,7 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { AppProvider } from "@/context/AppContext";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -87,6 +88,29 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="oauth/callback" />
+            <Stack.Screen 
+              name="stock/[symbol]" 
+              options={{ 
+                headerShown: true,
+                title: 'Stock Detail',
+              }} 
+            />
+            <Stack.Screen 
+              name="add-transaction" 
+              options={{ 
+                headerShown: true,
+                title: 'Add Transaction',
+                presentation: 'modal',
+              }} 
+            />
+            <Stack.Screen 
+              name="import-csv" 
+              options={{ 
+                headerShown: true,
+                title: 'Import CSV',
+                presentation: 'modal',
+              }} 
+            />
           </Stack>
           <StatusBar style="auto" />
         </QueryClientProvider>
@@ -99,6 +123,7 @@ export default function RootLayout() {
   if (shouldOverrideSafeArea) {
     return (
       <ThemeProvider>
+        <AppProvider>
         <SafeAreaProvider initialMetrics={providerInitialMetrics}>
           <SafeAreaFrameContext.Provider value={frame}>
             <SafeAreaInsetsContext.Provider value={insets}>
@@ -106,13 +131,16 @@ export default function RootLayout() {
             </SafeAreaInsetsContext.Provider>
           </SafeAreaFrameContext.Provider>
         </SafeAreaProvider>
+        </AppProvider>
       </ThemeProvider>
     );
   }
 
   return (
     <ThemeProvider>
+      <AppProvider>
       <SafeAreaProvider initialMetrics={providerInitialMetrics}>{content}</SafeAreaProvider>
+      </AppProvider>
     </ThemeProvider>
   );
 }

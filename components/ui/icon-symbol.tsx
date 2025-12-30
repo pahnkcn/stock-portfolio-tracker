@@ -18,6 +18,25 @@ const MAPPING = {
   "paperplane.fill": "send",
   "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-right",
+  // Stock Portfolio Tracker icons
+  "chart.pie.fill": "pie-chart",
+  "list.bullet.rectangle.fill": "receipt-long",
+  "chart.bar.fill": "bar-chart",
+  "gearshape.fill": "settings",
+  "plus.circle.fill": "add-circle",
+  "arrow.up.right": "trending-up",
+  "arrow.down.right": "trending-down",
+  "magnifyingglass": "search",
+  "doc.text.fill": "description",
+  "arrow.left.arrow.right": "swap-horiz",
+  "dollarsign.circle.fill": "attach-money",
+  "calendar": "event",
+  "trash.fill": "delete",
+  "pencil": "edit",
+  "xmark.circle.fill": "cancel",
+  "checkmark.circle.fill": "check-circle",
+  "info.circle.fill": "info",
+  "exclamationmark.triangle.fill": "warning",
 } as IconMapping;
 
 /**
