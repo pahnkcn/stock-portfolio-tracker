@@ -7,10 +7,12 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
 } from 'react-native';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
+import { SymbolAutocomplete } from '@/components/SymbolAutocomplete';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/use-colors';
 import type { TransactionType } from '@/types';
@@ -32,6 +34,11 @@ export default function AddTransactionScreen() {
     state.portfolios[0]?.id || ''
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSelectSymbol = useCallback((selectedSymbol: string, selectedCompanyName: string) => {
+    setSymbol(selectedSymbol);
+    setCompanyName(selectedCompanyName);
+  }, []);
 
   const handleSubmit = async () => {
     // Validation
@@ -161,53 +168,67 @@ export default function AddTransactionScreen() {
     <ScreenContainer edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
+        style={styles.flex1}
       >
-        <ScrollView className="flex-1 p-4">
+        <ScrollView 
+          style={styles.flex1} 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Header */}
-          <View className="flex-row items-center mb-6">
+          <View style={styles.header}>
             <TouchableOpacity
               onPress={() => router.back()}
-              style={{ padding: 8 }}
+              style={styles.cancelButton}
             >
-              <Text style={{ color: colors.primary, fontSize: 16 }}>Cancel</Text>
+              <Text style={[styles.cancelText, { color: colors.primary }]}>Cancel</Text>
             </TouchableOpacity>
-            <Text className="flex-1 text-center text-xl font-bold text-foreground">
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>
               Add Transaction
             </Text>
-            <View style={{ width: 60 }} />
+            <View style={styles.headerSpacer} />
           </View>
 
           {/* Transaction Type Toggle */}
-          <View className="flex-row mb-4 bg-surface rounded-xl p-1">
+          <View style={[styles.toggleContainer, { backgroundColor: colors.surface }]}>
             <TouchableOpacity
               onPress={() => setTransactionType('BUY')}
-              className="flex-1 py-3 rounded-lg"
-              style={{
-                backgroundColor: transactionType === 'BUY' ? colors.success : 'transparent',
-              }}
+              style={[
+                styles.toggleButton,
+                {
+                  backgroundColor: transactionType === 'BUY' ? colors.success : 'transparent',
+                },
+              ]}
             >
               <Text
-                className="text-center font-semibold"
-                style={{
-                  color: transactionType === 'BUY' ? '#fff' : colors.muted,
-                }}
+                style={[
+                  styles.toggleText,
+                  {
+                    color: transactionType === 'BUY' ? '#fff' : colors.foreground,
+                    opacity: transactionType === 'BUY' ? 1 : 0.6,
+                  },
+                ]}
               >
                 BUY
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setTransactionType('SELL')}
-              className="flex-1 py-3 rounded-lg"
-              style={{
-                backgroundColor: transactionType === 'SELL' ? colors.error : 'transparent',
-              }}
+              style={[
+                styles.toggleButton,
+                {
+                  backgroundColor: transactionType === 'SELL' ? colors.error : 'transparent',
+                },
+              ]}
             >
               <Text
-                className="text-center font-semibold"
-                style={{
-                  color: transactionType === 'SELL' ? '#fff' : colors.muted,
-                }}
+                style={[
+                  styles.toggleText,
+                  {
+                    color: transactionType === 'SELL' ? '#fff' : colors.foreground,
+                    opacity: transactionType === 'SELL' ? 1 : 0.6,
+                  },
+                ]}
               >
                 SELL
               </Text>
@@ -215,21 +236,23 @@ export default function AddTransactionScreen() {
           </View>
 
           {/* Portfolio Selector */}
-          <View className="mb-4">
-            <Text className="text-sm text-muted mb-2">Portfolio</Text>
+          <View style={styles.fieldContainer}>
+            <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Portfolio</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-2">
+              <View style={styles.portfolioRow}>
                 {state.portfolios.map((portfolio) => (
                   <TouchableOpacity
                     key={portfolio.id}
                     onPress={() => setSelectedPortfolioId(portfolio.id)}
-                    className="px-4 py-2 rounded-lg"
-                    style={{
-                      backgroundColor:
-                        selectedPortfolioId === portfolio.id
-                          ? colors.primary
-                          : colors.surface,
-                    }}
+                    style={[
+                      styles.portfolioButton,
+                      {
+                        backgroundColor:
+                          selectedPortfolioId === portfolio.id
+                            ? colors.primary
+                            : colors.surface,
+                      },
+                    ]}
                   >
                     <Text
                       style={{
@@ -237,6 +260,7 @@ export default function AddTransactionScreen() {
                           selectedPortfolioId === portfolio.id
                             ? '#fff'
                             : colors.foreground,
+                        fontWeight: '500',
                       }}
                     >
                       {portfolio.name}
@@ -248,92 +272,99 @@ export default function AddTransactionScreen() {
           </View>
 
           {/* Form Fields */}
-          <View className="gap-4">
-            {/* Symbol */}
-            <View>
-              <Text className="text-sm text-muted mb-2">Symbol *</Text>
-              <TextInput
+          <View style={styles.formContainer}>
+            {/* Symbol with Autocomplete */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Symbol *</Text>
+              <SymbolAutocomplete
                 value={symbol}
                 onChangeText={setSymbol}
-                placeholder="e.g. AAPL"
-                placeholderTextColor={colors.muted}
-                autoCapitalize="characters"
-                className="bg-surface p-4 rounded-xl text-foreground"
-                style={{ color: colors.foreground }}
+                onSelectSymbol={handleSelectSymbol}
+                placeholder="Search symbol (e.g., AAPL)"
               />
             </View>
 
-            {/* Company Name */}
-            <View>
-              <Text className="text-sm text-muted mb-2">Company Name</Text>
+            {/* Company Name (auto-filled) */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Company Name</Text>
               <TextInput
                 value={companyName}
                 onChangeText={setCompanyName}
-                placeholder="e.g. Apple Inc."
+                placeholder="Auto-filled when selecting symbol"
                 placeholderTextColor={colors.muted}
-                className="bg-surface p-4 rounded-xl text-foreground"
-                style={{ color: colors.foreground }}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
+                ]}
               />
             </View>
 
             {/* Shares */}
-            <View>
-              <Text className="text-sm text-muted mb-2">Shares *</Text>
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Shares *</Text>
               <TextInput
                 value={shares}
                 onChangeText={setShares}
                 placeholder="0"
                 placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
-                className="bg-surface p-4 rounded-xl text-foreground"
-                style={{ color: colors.foreground }}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
+                ]}
               />
             </View>
 
             {/* Price */}
-            <View>
-              <Text className="text-sm text-muted mb-2">Price per Share (USD) *</Text>
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Price per Share (USD) *</Text>
               <TextInput
                 value={price}
                 onChangeText={setPrice}
                 placeholder="0.00"
                 placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
-                className="bg-surface p-4 rounded-xl text-foreground"
-                style={{ color: colors.foreground }}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
+                ]}
               />
             </View>
 
             {/* Date */}
-            <View>
-              <Text className="text-sm text-muted mb-2">Date</Text>
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Date</Text>
               <TextInput
                 value={date}
                 onChangeText={setDate}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={colors.muted}
-                className="bg-surface p-4 rounded-xl text-foreground"
-                style={{ color: colors.foreground }}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
+                ]}
               />
             </View>
 
             {/* Commission */}
-            <View>
-              <Text className="text-sm text-muted mb-2">Commission (USD)</Text>
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Commission (USD)</Text>
               <TextInput
                 value={commission}
                 onChangeText={setCommission}
                 placeholder="0.00"
                 placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
-                className="bg-surface p-4 rounded-xl text-foreground"
-                style={{ color: colors.foreground }}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
+                ]}
               />
             </View>
 
             {/* Notes */}
-            <View>
-              <Text className="text-sm text-muted mb-2">Notes</Text>
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Notes</Text>
               <TextInput
                 value={notes}
                 onChangeText={setNotes}
@@ -341,15 +372,18 @@ export default function AddTransactionScreen() {
                 placeholderTextColor={colors.muted}
                 multiline
                 numberOfLines={3}
-                className="bg-surface p-4 rounded-xl text-foreground"
-                style={{ color: colors.foreground, minHeight: 80 }}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
+                ]}
               />
             </View>
 
             {/* Current Exchange Rate Info */}
-            <View className="bg-surface p-4 rounded-xl">
-              <Text className="text-sm text-muted">Current Exchange Rate</Text>
-              <Text className="text-lg font-semibold text-foreground">
+            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.infoLabel, { color: colors.foreground, opacity: 0.7 }]}>Current Exchange Rate</Text>
+              <Text style={[styles.infoValue, { color: colors.foreground }]}>
                 1 USD = ฿{state.currencyRate.usdThb.toFixed(2)}
               </Text>
             </View>
@@ -359,13 +393,15 @@ export default function AddTransactionScreen() {
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={isSubmitting}
-            className="mt-6 mb-8 py-4 rounded-xl"
-            style={{
-              backgroundColor: transactionType === 'BUY' ? colors.success : colors.error,
-              opacity: isSubmitting ? 0.6 : 1,
-            }}
+            style={[
+              styles.submitButton,
+              {
+                backgroundColor: transactionType === 'BUY' ? colors.success : colors.error,
+                opacity: isSubmitting ? 0.6 : 1,
+              },
+            ]}
           >
-            <Text className="text-center text-white font-bold text-lg">
+            <Text style={styles.submitText}>
               {isSubmitting ? 'Adding...' : `Add ${transactionType} Transaction`}
             </Text>
           </TouchableOpacity>
@@ -374,3 +410,103 @@ export default function AddTransactionScreen() {
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  flex1: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  cancelButton: {
+    padding: 8,
+  },
+  cancelText: {
+    fontSize: 16,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  headerSpacer: {
+    width: 60,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  toggleText: {
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  fieldContainer: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  portfolioRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  portfolioButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  formContainer: {
+    gap: 4,
+  },
+  input: {
+    padding: 16,
+    borderRadius: 12,
+    fontSize: 16,
+    borderWidth: 1,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  infoCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  infoLabel: {
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  submitButton: {
+    marginTop: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  submitText: {
+    textAlign: 'center',
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 17,
+  },
+});

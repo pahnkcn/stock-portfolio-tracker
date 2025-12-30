@@ -41,6 +41,35 @@ interface YahooFinanceChartResult {
   };
 }
 
+// Types for Yahoo Finance Search API response
+interface YahooFinanceSearchResult {
+  quotes: Array<{
+    symbol: string;
+    shortname?: string;
+    longname?: string;
+    exchange: string;
+    exchDisp?: string;
+    quoteType: string;
+    typeDisp?: string;
+    score?: number;
+    isYahooFinance?: boolean;
+  }>;
+  news?: unknown[];
+  nav?: unknown[];
+  lists?: unknown[];
+  researchReports?: unknown[];
+  screenerFieldResults?: unknown[];
+  totalTime?: number;
+  timeTakenForQuotes?: number;
+  timeTakenForNews?: number;
+  timeTakenForAlgowatchlist?: number;
+  timeTakenForPredefinedScreener?: number;
+  timeTakenForCr498702?: number;
+  timeTakenForResearchReports?: number;
+  timeTakenForScreenerField?: number;
+  timeTakenForCul498702?: number;
+}
+
 export interface StockQuoteResult {
   symbol: string;
   companyName: string;
@@ -67,6 +96,59 @@ export interface StockChartData {
     close: number[];
     volume: number[];
   };
+}
+
+export interface StockSearchResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+}
+
+/**
+ * Search for stock symbols using Yahoo Finance API
+ */
+export async function searchStockSymbols(query: string): Promise<StockSearchResult[]> {
+  try {
+    // Use Yahoo Finance search API
+    const response = await callDataApi("YahooFinance/search", {
+      query: {
+        q: query,
+        quotesCount: 10,
+        newsCount: 0,
+        enableFuzzyQuery: false,
+        quotesQueryId: "tss_match_phrase_query",
+      },
+    }) as YahooFinanceSearchResult;
+
+    if (!response?.quotes) {
+      return [];
+    }
+
+    // Filter to only show stocks (EQUITY) and ETFs from US exchanges
+    const usExchanges = ['NYSE', 'NASDAQ', 'NMS', 'NYQ', 'NGM', 'NCM', 'PCX', 'ASE', 'BTS'];
+    
+    return response.quotes
+      .filter(quote => {
+        // Only include equities and ETFs
+        const validTypes = ['EQUITY', 'ETF'];
+        if (!validTypes.includes(quote.quoteType)) return false;
+        
+        // Prefer US exchanges
+        const isUS = usExchanges.some(ex => quote.exchange?.includes(ex) || quote.exchDisp?.includes(ex));
+        return isUS || !quote.symbol.includes('.');
+      })
+      .slice(0, 8)
+      .map(quote => ({
+        symbol: quote.symbol,
+        name: quote.longname || quote.shortname || quote.symbol,
+        exchange: quote.exchDisp || quote.exchange,
+        type: quote.typeDisp || quote.quoteType,
+      }));
+  } catch (error) {
+    console.error(`Error searching stock symbols for "${query}":`, error);
+    return [];
+  }
 }
 
 /**
@@ -216,4 +298,8 @@ export const stockChartInputSchema = z.object({
 
 export const multipleQuotesInputSchema = z.object({
   symbols: z.array(z.string().min(1).max(10)).min(1).max(50),
+});
+
+export const stockSearchInputSchema = z.object({
+  query: z.string().min(1).max(50),
 });

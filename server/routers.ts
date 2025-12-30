@@ -6,9 +6,11 @@ import {
   getStockQuote,
   getStockChart,
   getMultipleStockQuotes,
+  searchStockSymbols,
   stockQuoteInputSchema,
   stockChartInputSchema,
   multipleQuotesInputSchema,
+  stockSearchInputSchema,
 } from "./stockApi";
 
 export const appRouter = router({
@@ -26,6 +28,14 @@ export const appRouter = router({
 
   // Stock API routes
   stock: router({
+    // Search stock symbols
+    search: publicProcedure
+      .input(stockSearchInputSchema)
+      .query(async ({ input }) => {
+        const results = await searchStockSymbols(input.query);
+        return results;
+      }),
+
     // Get single stock quote
     getQuote: publicProcedure
       .input(stockQuoteInputSchema)

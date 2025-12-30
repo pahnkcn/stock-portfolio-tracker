@@ -107,3 +107,11 @@
 - [x] ปรับสี muted text ให้เข้มขึ้น
 - [x] ปรับสี badge และ labels ให้ชัดเจนขึ้น
 - [x] ทดสอบ readability ทั้ง light และ dark mode
+
+
+## Symbol Autocomplete Feature
+
+- [x] สร้าง Stock Symbol Search API
+- [x] สร้าง Autocomplete Component
+- [x] เพิ่ม Autocomplete ในหน้า Add Stock
+- [x] แสดง Company Name เมื่อเลือก Symbol
