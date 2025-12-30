@@ -129,6 +129,7 @@ export async function getSettings(): Promise<AppSettings> {
   return getItem(STORAGE_KEYS.SETTINGS, {
     showInTHB: false,
     darkMode: false,
+    apiKeys: {},
   });
 }
 

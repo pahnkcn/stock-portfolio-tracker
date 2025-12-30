@@ -115,3 +115,13 @@
 - [x] สร้าง Autocomplete Component
 - [x] เพิ่ม Autocomplete ในหน้า Add Stock
 - [x] แสดง Company Name เมื่อเลือก Symbol
+
+
+## Settings Screen with API Keys
+
+- [x] สร้างหน้า Settings Screen
+- [x] เพิ่ม Tab Settings ใน Tab Bar
+- [x] สร้างระบบจัดเก็บ API Keys ใน AsyncStorage
+- [x] เพิ่มฟอร์มใส่ API Keys (Alpha Vantage, etc.)
+- [x] เพิ่มการตั้งค่าอัตราแลกเปลี่ยน USD/THB
+- [x] เพิ่ม Toggle Dark/Light Mode (Show in THB)

@@ -41,7 +41,7 @@ const initialState: AppState = {
   transactions: [],
   stockQuotes: {},
   currencyRate: { usdThb: 35.0, lastUpdated: new Date().toISOString() },
-  settings: { showInTHB: false, darkMode: false },
+  settings: { showInTHB: false, darkMode: false, apiKeys: {} },
   isLoading: true,
   isInitialized: false,
 };

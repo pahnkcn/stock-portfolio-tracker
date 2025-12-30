@@ -251,4 +251,14 @@ export interface AppSettings {
   defaultPortfolioId?: string;
   showInTHB: boolean;
   darkMode: boolean;
+  apiKeys: ApiKeys;
+  manualExchangeRate?: number; // Manual override for exchange rate
+}
+
+// API Keys Configuration
+export interface ApiKeys {
+  alphaVantage?: string;
+  finnhub?: string;
+  polygonIo?: string;
+  twelveData?: string;
 }
