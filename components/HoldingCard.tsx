@@ -134,7 +134,7 @@ export function HoldingCard({
             </View>
             <View style={styles.nameSection}>
               <Text style={[styles.symbol, { color: colors.foreground }]}>{holding.symbol}</Text>
-              <Text style={[styles.companyName, { color: colors.muted }]} numberOfLines={1}>
+              <Text style={[styles.companyName, { color: colors.foreground, opacity: 0.6 }]} numberOfLines={1}>
                 {holding.companyName}
               </Text>
             </View>
@@ -171,7 +171,7 @@ export function HoldingCard({
             />
           </View>
           <View style={styles.todaySection}>
-            <Text style={[styles.todayLabel, { color: colors.muted }]}>Today</Text>
+            <Text style={[styles.todayLabel, { color: colors.foreground, opacity: 0.6 }]}>Today</Text>
             <Text style={[styles.todayValue, { color: isDailyPositive ? colors.success : colors.error }]}>
               {isDailyPositive ? '+' : ''}{dailyChangePercent.toFixed(2)}%
             </Text>
@@ -181,19 +181,19 @@ export function HoldingCard({
         {/* Bottom Row: Stats */}
         <View style={[styles.bottomRow, { borderTopColor: colors.border }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Shares</Text>
+            <Text style={[styles.statLabel, { color: colors.foreground, opacity: 0.6 }]}>Shares</Text>
             <Text style={[styles.statValue, { color: colors.foreground }]}>
               {holding.shares.toLocaleString('en-US', { maximumFractionDigits: 4 })}
             </Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Avg Cost</Text>
+            <Text style={[styles.statLabel, { color: colors.foreground, opacity: 0.6 }]}>Avg Cost</Text>
             <Text style={[styles.statValue, { color: colors.foreground }]}>
               ${holding.avgCost.toFixed(2)}
             </Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={[styles.statLabel, { color: colors.muted }]}>Current</Text>
+            <Text style={[styles.statLabel, { color: colors.foreground, opacity: 0.6 }]}>Current</Text>
             <Text style={[styles.statValue, { color: colors.foreground }]}>
               ${currentPrice.toFixed(2)}
             </Text>

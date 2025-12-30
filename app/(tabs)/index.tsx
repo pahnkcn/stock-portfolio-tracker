@@ -114,21 +114,21 @@ export default function DashboardScreen() {
         <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Dashboard</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.muted }]}>Stock Portfolio Tracker</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.foreground, opacity: 0.6 }]}>Stock Portfolio Tracker</Text>
           </View>
           {/* Real-time indicator */}
           <View style={styles.statusContainer}>
             {isFetching && (
               <View style={styles.statusRow}>
                 <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.statusText, { color: colors.muted }]}>Updating...</Text>
+                <Text style={[styles.statusText, { color: colors.foreground, opacity: 0.6 }]}>Updating...</Text>
               </View>
             )}
             {lastUpdatedText && !isFetching && (
               <View style={[styles.liveIndicator, { backgroundColor: colors.success + '15' }]}>
                 <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
                 <Text style={[styles.liveText, { color: colors.success }]}>Live</Text>
-                <Text style={[styles.timeText, { color: colors.muted }]}>{lastUpdatedText}</Text>
+                <Text style={[styles.timeText, { color: colors.foreground, opacity: 0.6 }]}>{lastUpdatedText}</Text>
               </View>
             )}
           </View>
@@ -177,7 +177,7 @@ export default function DashboardScreen() {
               <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={[styles.emptyIcon]}>📊</Text>
                 <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No holdings yet</Text>
-                <Text style={[styles.emptySubtitle, { color: colors.muted }]}>
+                <Text style={[styles.emptySubtitle, { color: colors.foreground, opacity: 0.6 }]}>
                   Add stocks manually or import from CSV
                 </Text>
               </View>
@@ -304,7 +304,7 @@ export default function DashboardScreen() {
                       <Text style={[styles.txAmount, { color: colors.foreground }]}>
                         {tx.shares} @ ${tx.price.toFixed(2)}
                       </Text>
-                      <Text style={[styles.txRate, { color: colors.muted }]}>
+                      <Text style={[styles.txRate, { color: colors.foreground, opacity: 0.6 }]}>
                         Rate: ฿{tx.exchangeRate?.toFixed(2) || '-'}
                       </Text>
                     </View>

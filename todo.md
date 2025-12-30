@@ -99,3 +99,11 @@
 - [x] ปรับปรุง Holding Card ให้มี mini chart
 - [x] ปรับปรุง Stats Cards ให้มี animation
 - [x] เพิ่ม Skeleton loading states
+
+
+## Color Accessibility Fix
+
+- [x] เพิ่ม contrast สำหรับ text colors
+- [x] ปรับสี muted text ให้เข้มขึ้น
+- [x] ปรับสี badge และ labels ให้ชัดเจนขึ้น
+- [x] ทดสอบ readability ทั้ง light และ dark mode

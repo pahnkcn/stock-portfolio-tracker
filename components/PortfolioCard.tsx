@@ -100,7 +100,7 @@ export function PortfolioCard({
       ]}
     >
       {/* Header Label */}
-      <Text style={[styles.label, { color: colors.muted }]}>Total Portfolio Value</Text>
+      <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Total Portfolio Value</Text>
       
       {/* Main Value with Animation */}
       <View style={styles.valueContainer}>
@@ -120,7 +120,7 @@ export function PortfolioCard({
       {/* P&L Stats Row */}
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.muted }]}>Total P&L</Text>
+          <Text style={[styles.statLabel, { color: colors.foreground, opacity: 0.7 }]}>Total P&L</Text>
           <View style={styles.statValueRow}>
             <AnimatedCurrency
               value={displayPnL}
@@ -143,7 +143,7 @@ export function PortfolioCard({
         </View>
 
         <View style={[styles.statItem, styles.statItemRight]}>
-          <Text style={[styles.statLabel, { color: colors.muted }]}>Today</Text>
+          <Text style={[styles.statLabel, { color: colors.foreground, opacity: 0.7 }]}>Today</Text>
           <View style={styles.statValueRow}>
             <AnimatedCurrency
               value={displayDailyChange}
@@ -247,13 +247,13 @@ export function PortfolioCard({
       {/* Footer */}
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <View style={styles.footerItem}>
-          <Text style={[styles.footerLabel, { color: colors.muted }]}>Cost Basis</Text>
+          <Text style={[styles.footerLabel, { color: colors.foreground, opacity: 0.7 }]}>Cost Basis</Text>
           <Text style={[styles.footerValue, { color: colors.foreground }]}>
             {formatCurrency(showInTHB ? totalCost * usdThbRate : totalCost, currency)}
           </Text>
         </View>
         <View style={[styles.footerItem, styles.footerItemRight]}>
-          <Text style={[styles.footerLabel, { color: colors.muted }]}>USD/THB Rate</Text>
+          <Text style={[styles.footerLabel, { color: colors.foreground, opacity: 0.7 }]}>USD/THB Rate</Text>
           <Text style={[styles.footerValue, { color: colors.foreground }]}>฿{usdThbRate.toFixed(2)}</Text>
         </View>
       </View>

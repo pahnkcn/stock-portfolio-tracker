@@ -1,40 +1,40 @@
 /** @type {const} */
 const themeColors = {
-  // Primary - Modern blue gradient base
-  primary: { light: '#3B82F6', dark: '#60A5FA' },
+  // Primary - Strong blue for better visibility
+  primary: { light: '#2563EB', dark: '#3B82F6' },
   
-  // Background - Clean with subtle depth
-  background: { light: '#F8FAFC', dark: '#0F172A' },
+  // Background - Clean backgrounds
+  background: { light: '#FFFFFF', dark: '#0F172A' },
   
-  // Surface - Elevated cards with glassmorphism support
-  surface: { light: '#FFFFFF', dark: '#1E293B' },
+  // Surface - Cards with good contrast
+  surface: { light: '#F8FAFC', dark: '#1E293B' },
   surfaceElevated: { light: '#FFFFFF', dark: '#334155' },
   
-  // Text colors
-  foreground: { light: '#0F172A', dark: '#F1F5F9' },
-  muted: { light: '#64748B', dark: '#94A3B8' },
+  // Text colors - High contrast for readability
+  foreground: { light: '#1E293B', dark: '#F8FAFC' },
+  muted: { light: '#475569', dark: '#CBD5E1' }, // Darker muted for better readability
   
-  // Borders
-  border: { light: '#E2E8F0', dark: '#334155' },
-  borderLight: { light: '#F1F5F9', dark: '#1E293B' },
+  // Borders - Visible but subtle
+  border: { light: '#CBD5E1', dark: '#475569' },
+  borderLight: { light: '#E2E8F0', dark: '#334155' },
   
-  // Status colors - Vibrant and modern
-  success: { light: '#10B981', dark: '#34D399' },
+  // Status colors - Vibrant and clear
+  success: { light: '#059669', dark: '#10B981' }, // Darker green for light mode
   successLight: { light: '#D1FAE5', dark: '#064E3B' },
-  warning: { light: '#F59E0B', dark: '#FBBF24' },
+  warning: { light: '#D97706', dark: '#F59E0B' }, // Darker orange for light mode
   warningLight: { light: '#FEF3C7', dark: '#78350F' },
-  error: { light: '#EF4444', dark: '#F87171' },
+  error: { light: '#DC2626', dark: '#EF4444' }, // Darker red for light mode
   errorLight: { light: '#FEE2E2', dark: '#7F1D1D' },
   
-  // Accent colors for charts and visualization
-  accent1: { light: '#8B5CF6', dark: '#A78BFA' }, // Purple
-  accent2: { light: '#EC4899', dark: '#F472B6' }, // Pink
-  accent3: { light: '#06B6D4', dark: '#22D3EE' }, // Cyan
-  accent4: { light: '#F97316', dark: '#FB923C' }, // Orange
+  // Accent colors for charts - High contrast
+  accent1: { light: '#7C3AED', dark: '#A78BFA' }, // Purple
+  accent2: { light: '#DB2777', dark: '#F472B6' }, // Pink
+  accent3: { light: '#0891B2', dark: '#22D3EE' }, // Cyan
+  accent4: { light: '#EA580C', dark: '#FB923C' }, // Orange
   
   // Gradient support
-  gradientStart: { light: '#3B82F6', dark: '#6366F1' },
-  gradientEnd: { light: '#8B5CF6', dark: '#A78BFA' },
+  gradientStart: { light: '#2563EB', dark: '#6366F1' },
+  gradientEnd: { light: '#7C3AED', dark: '#A78BFA' },
 };
 
 module.exports = { themeColors };
