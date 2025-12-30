@@ -125,3 +125,11 @@
 - [x] เพิ่มฟอร์มใส่ API Keys (Alpha Vantage, etc.)
 - [x] เพิ่มการตั้งค่าอัตราแลกเปลี่ยน USD/THB
 - [x] เพิ่ม Toggle Dark/Light Mode (Show in THB)
+
+
+## Remove Yahoo Finance as Default
+
+- [x] ปิดการดึงข้อมูลจาก Yahoo Finance โดย default
+- [x] ให้แอพทำงานได้โดยไม่ต้องมี API Key
+- [x] แสดงข้อความแนะนำให้ใส่ API Key ในหน้า Settings
+- [x] Feature อื่นๆ ยังคงทำงานได้ (Add Stock, Import CSV, etc.)

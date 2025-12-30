@@ -17,12 +17,20 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
 
   // Get unique symbols from holdings
   const symbols = [...new Set(state.holdings.map((h) => h.symbol))];
+  
+  // Check if any API key is configured
+  const hasApiKey = !!(
+    state.settings.apiKeys?.alphaVantage ||
+    state.settings.apiKeys?.finnhub ||
+    state.settings.apiKeys?.twelveData ||
+    state.settings.apiKeys?.polygonIo
+  );
 
-  // tRPC query for multiple quotes
+  // tRPC query for multiple quotes - only enabled if API key is configured
   const quotesQuery = trpc.stock.getMultipleQuotes.useQuery(
     { symbols },
     {
-      enabled: symbols.length > 0,
+      enabled: symbols.length > 0 && hasApiKey,
       staleTime: 30000, // Consider data stale after 30 seconds
       refetchOnWindowFocus: false,
     }
@@ -54,9 +62,9 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
     }
   }, [quotesQuery.data, dispatch]);
 
-  // Auto-refresh logic
+  // Auto-refresh logic - only if API key is configured
   useEffect(() => {
-    if (autoRefresh && symbols.length > 0) {
+    if (autoRefresh && symbols.length > 0 && hasApiKey) {
       intervalRef.current = setInterval(() => {
         quotesQuery.refetch();
       }, refreshInterval);
@@ -67,12 +75,15 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
         }
       };
     }
-  }, [autoRefresh, refreshInterval, symbols.length, quotesQuery]);
+  }, [autoRefresh, refreshInterval, symbols.length, hasApiKey, quotesQuery]);
 
   // Manual refresh function
   const refresh = useCallback(() => {
+    if (!hasApiKey) {
+      return Promise.resolve(null);
+    }
     return quotesQuery.refetch();
-  }, [quotesQuery]);
+  }, [quotesQuery, hasApiKey]);
 
   return {
     quotes: state.stockQuotes,
@@ -80,6 +91,7 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
     isFetching: quotesQuery.isFetching,
     error: quotesQuery.error,
     refresh,
+    hasApiKey,
     lastUpdated: quotesQuery.dataUpdatedAt
       ? new Date(quotesQuery.dataUpdatedAt).toISOString()
       : null,
@@ -87,13 +99,23 @@ export function useStockQuotes(options: UseStockQuotesOptions = {}) {
 }
 
 /**
- * Hook to fetch a single stock quote
+ * Hook to fetch a single stock quote - only if API key is configured
  */
 export function useStockQuote(symbol: string) {
+  const { state } = useApp();
+  
+  // Check if any API key is configured
+  const hasApiKey = !!(
+    state.settings.apiKeys?.alphaVantage ||
+    state.settings.apiKeys?.finnhub ||
+    state.settings.apiKeys?.twelveData ||
+    state.settings.apiKeys?.polygonIo
+  );
+
   const quoteQuery = trpc.stock.getQuote.useQuery(
     { symbol },
     {
-      enabled: !!symbol,
+      enabled: !!symbol && hasApiKey,
       staleTime: 30000,
     }
   );
@@ -103,21 +125,32 @@ export function useStockQuote(symbol: string) {
     isLoading: quoteQuery.isLoading,
     error: quoteQuery.error,
     refresh: quoteQuery.refetch,
+    hasApiKey,
   };
 }
 
 /**
- * Hook to fetch stock chart data
+ * Hook to fetch stock chart data - only if API key is configured
  */
 export function useStockChart(
   symbol: string,
   interval: '1m' | '5m' | '15m' | '30m' | '1h' | '1d' | '1wk' | '1mo' = '1d',
   range: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max' = '1mo'
 ) {
+  const { state } = useApp();
+  
+  // Check if any API key is configured
+  const hasApiKey = !!(
+    state.settings.apiKeys?.alphaVantage ||
+    state.settings.apiKeys?.finnhub ||
+    state.settings.apiKeys?.twelveData ||
+    state.settings.apiKeys?.polygonIo
+  );
+
   const chartQuery = trpc.stock.getChart.useQuery(
     { symbol, interval, range },
     {
-      enabled: !!symbol,
+      enabled: !!symbol && hasApiKey,
       staleTime: 60000, // Chart data stale after 1 minute
     }
   );
@@ -127,5 +160,6 @@ export function useStockChart(
     isLoading: chartQuery.isLoading,
     error: chartQuery.error,
     refresh: chartQuery.refetch,
+    hasApiKey,
   };
 }

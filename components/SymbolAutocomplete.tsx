@@ -12,12 +12,11 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
   withSpring,
   FadeIn,
-  FadeOut,
 } from 'react-native-reanimated';
 import { useColors } from '@/hooks/use-colors';
+import { useApp } from '@/context/AppContext';
 import { trpc } from '@/lib/trpc';
 
 interface StockSearchResult {
@@ -39,10 +38,11 @@ export function SymbolAutocomplete({
   value,
   onChangeText,
   onSelectSymbol,
-  placeholder = 'Search symbol (e.g., AAPL)',
+  placeholder = 'Enter symbol (e.g., AAPL)',
   autoFocus = false,
 }: SymbolAutocompleteProps) {
   const colors = useColors();
+  const { state } = useApp();
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const inputRef = useRef<TextInput>(null);
@@ -51,11 +51,19 @@ export function SymbolAutocomplete({
   // Animation values
   const dropdownHeight = useSharedValue(0);
 
-  // Search query with debounce
+  // Check if any API key is configured
+  const hasApiKey = !!(
+    state.settings.apiKeys?.alphaVantage ||
+    state.settings.apiKeys?.finnhub ||
+    state.settings.apiKeys?.twelveData ||
+    state.settings.apiKeys?.polygonIo
+  );
+
+  // Search query with debounce - only if API key is configured
   const { data: searchResults, isLoading } = trpc.stock.search.useQuery(
     { query: debouncedQuery },
     {
-      enabled: debouncedQuery.length >= 1,
+      enabled: debouncedQuery.length >= 1 && hasApiKey,
       staleTime: 30000, // Cache results for 30 seconds
     }
   );
@@ -66,7 +74,7 @@ export function SymbolAutocomplete({
       clearTimeout(debounceTimeout.current);
     }
 
-    if (value.length >= 1) {
+    if (value.length >= 1 && hasApiKey) {
       debounceTimeout.current = setTimeout(() => {
         setDebouncedQuery(value.toUpperCase());
         setShowSuggestions(true);
@@ -81,7 +89,7 @@ export function SymbolAutocomplete({
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [value]);
+  }, [value, hasApiKey]);
 
   // Animate dropdown
   useEffect(() => {
@@ -103,10 +111,10 @@ export function SymbolAutocomplete({
   }, [onChangeText, onSelectSymbol]);
 
   const handleFocus = useCallback(() => {
-    if (value.length >= 1 && searchResults && searchResults.length > 0) {
+    if (value.length >= 1 && searchResults && searchResults.length > 0 && hasApiKey) {
       setShowSuggestions(true);
     }
-  }, [value, searchResults]);
+  }, [value, searchResults, hasApiKey]);
 
   const handleBlur = useCallback(() => {
     // Delay hiding to allow tap on suggestion
@@ -114,6 +122,13 @@ export function SymbolAutocomplete({
       setShowSuggestions(false);
     }, 200);
   }, []);
+
+  // Handle manual input submission (when no API key)
+  const handleSubmitEditing = useCallback(() => {
+    if (value.trim()) {
+      onSelectSymbol(value.toUpperCase(), '');
+    }
+  }, [value, onSelectSymbol]);
 
   return (
     <View style={styles.container}>
@@ -133,81 +148,96 @@ export function SymbolAutocomplete({
           onChangeText={onChangeText}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          placeholder={placeholder}
+          onSubmitEditing={handleSubmitEditing}
+          placeholder={hasApiKey ? 'Search symbol (e.g., AAPL)' : placeholder}
           placeholderTextColor={colors.muted}
           autoCapitalize="characters"
           autoCorrect={false}
           autoFocus={autoFocus}
           style={[styles.input, { color: colors.foreground }]}
-          returnKeyType="search"
+          returnKeyType={hasApiKey ? 'search' : 'done'}
         />
-        {isLoading && (
+        {isLoading && hasApiKey && (
           <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />
+        )}
+        {!hasApiKey && (
+          <View style={[styles.manualBadge, { backgroundColor: colors.warning + '15' }]}>
+            <Text style={[styles.manualText, { color: colors.warning }]}>Manual</Text>
+          </View>
         )}
       </View>
 
-      {/* Suggestions Dropdown */}
-      <Animated.View
-        style={[
-          styles.dropdown,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            ...Platform.select({
-              ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.1,
-                shadowRadius: 12,
-              },
-              android: { elevation: 8 },
-              web: { boxShadow: '0 4px 20px rgba(0,0,0,0.1)' },
-            }),
-          },
-          dropdownAnimatedStyle,
-        ]}
-      >
-        {searchResults?.map((result, index) => (
-          <Animated.View
-            key={result.symbol}
-            entering={FadeIn.delay(index * 30).duration(150)}
-          >
-            <Pressable
-              onPress={() => handleSelect(result)}
-              style={({ pressed }) => [
-                styles.suggestionItem,
-                {
-                  backgroundColor: pressed ? colors.border + '30' : 'transparent',
-                  borderBottomColor: colors.border,
-                  borderBottomWidth: index < searchResults.length - 1 ? 1 : 0,
+      {/* Hint text when no API key */}
+      {!hasApiKey && (
+        <Text style={[styles.hintText, { color: colors.muted }]}>
+          Enter stock symbol manually. Add API key in Settings for autocomplete.
+        </Text>
+      )}
+
+      {/* Suggestions Dropdown - only shown when API key is configured */}
+      {hasApiKey && (
+        <Animated.View
+          style={[
+            styles.dropdown,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              ...Platform.select({
+                ios: {
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 12,
                 },
-              ]}
+                android: { elevation: 8 },
+                web: { boxShadow: '0 4px 20px rgba(0,0,0,0.1)' },
+              }),
+            },
+            dropdownAnimatedStyle,
+          ]}
+        >
+          {searchResults?.map((result, index) => (
+            <Animated.View
+              key={result.symbol}
+              entering={FadeIn.delay(index * 30).duration(150)}
             >
-              <View style={styles.suggestionContent}>
-                <View style={styles.symbolRow}>
-                  <Text style={[styles.symbol, { color: colors.foreground }]}>
-                    {result.symbol}
-                  </Text>
-                  <View style={[styles.exchangeBadge, { backgroundColor: colors.primary + '15' }]}>
-                    <Text style={[styles.exchangeText, { color: colors.primary }]}>
-                      {result.exchange}
+              <Pressable
+                onPress={() => handleSelect(result)}
+                style={({ pressed }) => [
+                  styles.suggestionItem,
+                  {
+                    backgroundColor: pressed ? colors.border + '30' : 'transparent',
+                    borderBottomColor: colors.border,
+                    borderBottomWidth: index < searchResults.length - 1 ? 1 : 0,
+                  },
+                ]}
+              >
+                <View style={styles.suggestionContent}>
+                  <View style={styles.symbolRow}>
+                    <Text style={[styles.symbol, { color: colors.foreground }]}>
+                      {result.symbol}
                     </Text>
+                    <View style={[styles.exchangeBadge, { backgroundColor: colors.primary + '15' }]}>
+                      <Text style={[styles.exchangeText, { color: colors.primary }]}>
+                        {result.exchange}
+                      </Text>
+                    </View>
                   </View>
+                  <Text
+                    style={[styles.companyName, { color: colors.foreground, opacity: 0.7 }]}
+                    numberOfLines={1}
+                  >
+                    {result.name}
+                  </Text>
                 </View>
-                <Text
-                  style={[styles.companyName, { color: colors.foreground, opacity: 0.7 }]}
-                  numberOfLines={1}
-                >
-                  {result.name}
+                <Text style={[styles.typeText, { color: colors.muted }]}>
+                  {result.type}
                 </Text>
-              </View>
-              <Text style={[styles.typeText, { color: colors.muted }]}>
-                {result.type}
-              </Text>
-            </Pressable>
-          </Animated.View>
-        ))}
-      </Animated.View>
+              </Pressable>
+            </Animated.View>
+          ))}
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -233,6 +263,21 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginLeft: 8,
+  },
+  manualBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  manualText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  hintText: {
+    fontSize: 12,
+    marginTop: 6,
+    marginLeft: 4,
   },
   dropdown: {
     position: 'absolute',

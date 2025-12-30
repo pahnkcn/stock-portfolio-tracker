@@ -40,7 +40,7 @@ export default function DashboardScreen() {
   });
 
   // Use real-time stock quotes with auto-refresh every 60 seconds
-  const { quotes, isLoading: quotesLoading, isFetching, refresh: refreshQuotes, lastUpdated } = useStockQuotes({
+  const { quotes, isLoading: quotesLoading, isFetching, refresh: refreshQuotes, lastUpdated, hasApiKey } = useStockQuotes({
     refreshInterval: 60000,
     autoRefresh: true,
   });
@@ -118,17 +118,22 @@ export default function DashboardScreen() {
           </View>
           {/* Real-time indicator */}
           <View style={styles.statusContainer}>
-            {isFetching && (
+            {hasApiKey && isFetching && (
               <View style={styles.statusRow}>
                 <ActivityIndicator size="small" color={colors.primary} />
                 <Text style={[styles.statusText, { color: colors.foreground, opacity: 0.6 }]}>Updating...</Text>
               </View>
             )}
-            {lastUpdatedText && !isFetching && (
+            {hasApiKey && lastUpdatedText && !isFetching && (
               <View style={[styles.liveIndicator, { backgroundColor: colors.success + '15' }]}>
                 <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
                 <Text style={[styles.liveText, { color: colors.success }]}>Live</Text>
                 <Text style={[styles.timeText, { color: colors.foreground, opacity: 0.6 }]}>{lastUpdatedText}</Text>
+              </View>
+            )}
+            {!hasApiKey && (
+              <View style={[styles.offlineIndicator, { backgroundColor: colors.warning + '15' }]}>
+                <Text style={[styles.offlineText, { color: colors.warning }]}>Offline</Text>
               </View>
             )}
           </View>
@@ -368,6 +373,17 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 11,
+  },
+  offlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  offlineText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   cardContainer: {
     paddingVertical: 12,
