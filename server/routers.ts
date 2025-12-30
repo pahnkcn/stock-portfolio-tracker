@@ -12,6 +12,10 @@ import {
   multipleQuotesInputSchema,
   stockSearchInputSchema,
 } from "./stockApi";
+import {
+  getCurrentExchangeRate,
+  exchangeRateInputSchema,
+} from "./exchangeRateApi";
 
 export const appRouter = router({
   system: systemRouter,
@@ -58,6 +62,17 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const quotes = await getMultipleStockQuotes(input.symbols);
         return quotes;
+      }),
+  }),
+
+  // Exchange Rate API routes
+  exchangeRate: router({
+    // Get current USD/THB exchange rate
+    getCurrent: publicProcedure
+      .input(exchangeRateInputSchema)
+      .query(async () => {
+        const rate = await getCurrentExchangeRate();
+        return rate;
       }),
   }),
 });

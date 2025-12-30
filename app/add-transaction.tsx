@@ -23,7 +23,7 @@ import type { TransactionType } from '@/types';
 export default function AddTransactionScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { state, addTransaction, addHolding, updateHolding } = useApp();
+  const { state, addTransaction, addHolding, updateHolding, fetchExchangeRate } = useApp();
 
   const [transactionType, setTransactionType] = useState<TransactionType>('BUY');
   const [symbol, setSymbol] = useState('');
@@ -40,6 +40,7 @@ export default function AddTransactionScreen() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
+  const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Check if API key is configured
@@ -53,25 +54,71 @@ export default function AddTransactionScreen() {
 
   // Auto-fetch price when symbol is selected and API key is available
   const fetchCurrentPrice = useCallback(async (stockSymbol: string) => {
-    if (!hasApiKey || !stockSymbol) return;
-    
+    if (!stockSymbol) return;
+
+    // Get Yahoo Finance API key from settings
+    const yahooApiKey = state.settings.apiKeys.yahooFinance;
+    if (!yahooApiKey) {
+      console.log('No Yahoo Finance API key configured');
+      return;
+    }
+
     setIsFetchingPrice(true);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/trpc/stock.getQuote?input=${encodeURIComponent(JSON.stringify({ symbol: stockSymbol }))}`);
+      // Call Yahoo Finance RapidAPI directly (yahoo-finance15)
+      const response = await fetch(
+        `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/quotes?ticker=${stockSymbol.toUpperCase()}`,
+        {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-host': 'yahoo-finance15.p.rapidapi.com',
+            'x-rapidapi-key': yahooApiKey,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`API error: ${response.status} ${response.statusText}`);
+        throw new Error(`API error: ${response.status}`);
+      }
+
       const data = await response.json();
-      const quote = data?.result?.data;
-      if (quote && quote.price) {
-        setPrice(quote.price.toFixed(2));
+      console.log('Stock API response:', JSON.stringify(data, null, 2));
+
+      // Handle different response formats
+      let priceValue: number | null = null;
+
+      // Format 1: body array with regularMarketPrice
+      if (data?.body?.[0]?.regularMarketPrice) {
+        priceValue = data.body[0].regularMarketPrice;
+      }
+      // Format 2: direct regularMarketPrice
+      else if (data?.regularMarketPrice) {
+        priceValue = data.regularMarketPrice;
+      }
+      // Format 3: price field
+      else if (data?.price) {
+        priceValue = data.price;
+      }
+      // Format 4: quoteResponse format
+      else if (data?.quoteResponse?.result?.[0]?.regularMarketPrice) {
+        priceValue = data.quoteResponse.result[0].regularMarketPrice;
+      }
+
+      if (priceValue && priceValue > 0) {
+        setPrice(priceValue.toFixed(2));
         if (Platform.OS !== 'web') {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
+      } else {
+        console.warn('Could not find price in response:', data);
       }
     } catch (error) {
       console.error('Error fetching price:', error);
     } finally {
       setIsFetchingPrice(false);
     }
-  }, [hasApiKey]);
+  }, [state.settings.apiKeys.yahooFinance]);
 
   const handleSelectSymbol = useCallback((selectedSymbol: string, selectedCompanyName: string) => {
     setSymbol(selectedSymbol);
@@ -79,6 +126,22 @@ export default function AddTransactionScreen() {
     // Auto-fetch price when symbol is selected
     fetchCurrentPrice(selectedSymbol);
   }, [fetchCurrentPrice]);
+
+  // Fetch current exchange rate from API
+  const handleRefreshExchangeRate = useCallback(async () => {
+    setIsFetchingRate(true);
+    try {
+      const rate = await fetchExchangeRate();
+      setExchangeRate(rate.usdThb.toFixed(2));
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error fetching exchange rate:', error);
+    } finally {
+      setIsFetchingRate(false);
+    }
+  }, [fetchExchangeRate]);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -521,7 +584,16 @@ export default function AddTransactionScreen() {
 
             {/* Exchange Rate (Editable) */}
             <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Exchange Rate (USD/THB)</Text>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Exchange Rate (USD/THB)</Text>
+                {isFetchingRate ? (
+                  <Text style={[styles.fetchingText, { color: colors.primary }]}>Fetching...</Text>
+                ) : (
+                  <TouchableOpacity onPress={handleRefreshExchangeRate}>
+                    <Text style={[styles.refreshPriceText, { color: colors.primary }]}>↻ Live Rate</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <TextInput
                 value={exchangeRate}
                 onChangeText={setExchangeRate}

@@ -1,5 +1,3 @@
-import { callDataApi } from "./_core/dataApi";
-
 export interface ExchangeRateResult {
   usdThb: number;
   lastUpdated: string;
@@ -17,7 +15,7 @@ const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 
 /**
  * Get current USD/THB exchange rate
- * Uses ExchangeRate-API via Data API
+ * Uses free exchangerate-api.com API (no API key required for basic use)
  */
 export async function getCurrentExchangeRate(): Promise<ExchangeRateResult> {
   // Check cache
@@ -26,35 +24,89 @@ export async function getCurrentExchangeRate(): Promise<ExchangeRateResult> {
     return cachedRate;
   }
 
-  try {
-    // Try to get rate from ExchangeRate-API
-    const response = await callDataApi("ExchangeRate/get_exchange_rate", {
-      query: {
-        base_currency: "USD",
-        target_currency: "THB",
-      },
-    }) as { conversion_rate?: number; time_last_update_utc?: string };
+  // Try multiple free APIs in order of preference
+  const apis = [
+    fetchFromExchangeRateApi,
+    fetchFromFloatRates,
+  ];
 
-    if (response?.conversion_rate) {
-      cachedRate = {
-        usdThb: response.conversion_rate,
-        lastUpdated: response.time_last_update_utc || new Date().toISOString(),
-      };
-      cacheTimestamp = now;
-      return cachedRate;
+  for (const fetchFn of apis) {
+    try {
+      const result = await fetchFn();
+      if (result) {
+        cachedRate = result;
+        cacheTimestamp = now;
+        return result;
+      }
+    } catch (error) {
+      console.warn(`Exchange rate API failed:`, error);
     }
-
-    // Fallback to default rate if API fails
-    console.warn("Exchange rate API returned no data, using fallback rate");
-    return getDefaultRate();
-  } catch (error) {
-    console.error("Error fetching exchange rate:", error);
-    // Return cached rate if available, otherwise use default
-    if (cachedRate) {
-      return cachedRate;
-    }
-    return getDefaultRate();
   }
+
+  // Return cached rate if available, otherwise use default
+  console.warn("All exchange rate APIs failed, using fallback rate");
+  if (cachedRate) {
+    return cachedRate;
+  }
+  return getDefaultRate();
+}
+
+/**
+ * Fetch from exchangerate-api.com (free tier)
+ */
+async function fetchFromExchangeRateApi(): Promise<ExchangeRateResult | null> {
+  const response = await fetch(
+    "https://open.er-api.com/v6/latest/USD",
+    { signal: AbortSignal.timeout(10000) }
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json() as {
+    result?: string;
+    rates?: Record<string, number>;
+    time_last_update_utc?: string;
+  };
+
+  if (data?.result === "success" && data?.rates?.THB) {
+    return {
+      usdThb: data.rates.THB,
+      lastUpdated: data.time_last_update_utc || new Date().toISOString(),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Fetch from floatrates.com (backup free API)
+ */
+async function fetchFromFloatRates(): Promise<ExchangeRateResult | null> {
+  const response = await fetch(
+    "https://www.floatrates.com/daily/usd.json",
+    { signal: AbortSignal.timeout(10000) }
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json() as Record<string, {
+    code?: string;
+    rate?: number;
+    date?: string;
+  }>;
+
+  if (data?.thb?.rate) {
+    return {
+      usdThb: data.thb.rate,
+      lastUpdated: data.thb.date || new Date().toISOString(),
+    };
+  }
+
+  return null;
 }
 
 /**

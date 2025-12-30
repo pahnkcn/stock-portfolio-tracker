@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useCallback, t
 import type { Portfolio, Holding, Transaction, StockQuote, CurrencyRate, AppSettings } from '@/types';
 import type { BackupData } from '@/lib/backup';
 import * as storage from '@/lib/storage';
+import { getApiBaseUrl } from '@/constants/oauth';
 
 // State type
 interface AppState {
@@ -158,6 +159,7 @@ interface AppContextType {
   updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
   // Currency actions
   updateCurrencyRate: (rate: number) => Promise<void>;
+  fetchExchangeRate: () => Promise<CurrencyRate>;
   // Refresh
   refreshData: () => Promise<void>;
   // Backup
@@ -213,6 +215,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     loadData();
   }, []);
+
+  // Fetch exchange rate from API when app is initialized
+  useEffect(() => {
+    if (state.isInitialized) {
+      // Fetch exchange rate in background (don't block UI)
+      const fetchRate = async () => {
+        try {
+          // Call free exchange rate API directly
+          const response = await fetch('https://open.er-api.com/v6/latest/USD');
+          const data = await response.json();
+
+          if (data?.result === 'success' && data?.rates?.THB) {
+            const currencyRate: CurrencyRate = {
+              usdThb: data.rates.THB,
+              lastUpdated: data.time_last_update_utc || new Date().toISOString(),
+            };
+            await storage.saveCurrencyRate(currencyRate);
+            dispatch({ type: 'SET_CURRENCY_RATE', payload: currencyRate });
+          }
+        } catch (error) {
+          console.error('Error fetching exchange rate on init:', error);
+        }
+      };
+      fetchRate();
+    }
+  }, [state.isInitialized]);
 
   // Portfolio actions
   const addPortfolio = useCallback(async (name: string, description?: string): Promise<Portfolio> => {
@@ -313,6 +341,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_CURRENCY_RATE', payload: currencyRate });
   }, []);
 
+  // Fetch exchange rate from API
+  const fetchExchangeRate = useCallback(async (): Promise<CurrencyRate> => {
+    // Try multiple free APIs
+    const apis = [
+      async () => {
+        const response = await fetch('https://open.er-api.com/v6/latest/USD');
+        const data = await response.json();
+        if (data?.result === 'success' && data?.rates?.THB) {
+          return {
+            usdThb: data.rates.THB,
+            lastUpdated: data.time_last_update_utc || new Date().toISOString(),
+          };
+        }
+        return null;
+      },
+      async () => {
+        const response = await fetch('https://www.floatrates.com/daily/usd.json');
+        const data = await response.json();
+        if (data?.thb?.rate) {
+          return {
+            usdThb: data.thb.rate,
+            lastUpdated: data.thb.date || new Date().toISOString(),
+          };
+        }
+        return null;
+      },
+    ];
+
+    for (const fetchFn of apis) {
+      try {
+        const result = await fetchFn();
+        if (result) {
+          const currencyRate: CurrencyRate = result;
+          await storage.saveCurrencyRate(currencyRate);
+          dispatch({ type: 'SET_CURRENCY_RATE', payload: currencyRate });
+          return currencyRate;
+        }
+      } catch (error) {
+        console.warn('Exchange rate API failed:', error);
+      }
+    }
+
+    // Return current state if all APIs fail
+    return state.currencyRate;
+  }, [state.currencyRate]);
+
   // Refresh data
   const refreshData = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -366,6 +440,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     importTransactions,
     updateSettings,
     updateCurrencyRate,
+    fetchExchangeRate,
     refreshData,
     restoreFromBackup,
   };

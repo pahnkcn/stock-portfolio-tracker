@@ -13,11 +13,11 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
   FadeIn,
 } from 'react-native-reanimated';
 import { useColors } from '@/hooks/use-colors';
 import { useApp } from '@/context/AppContext';
-import { trpc } from '@/lib/trpc';
 
 interface StockSearchResult {
   symbol: string;
@@ -47,26 +47,79 @@ export function SymbolAutocomplete({
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const inputRef = useRef<TextInput>(null);
   const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const justSelectedRef = useRef(false);
 
   // Animation values
   const dropdownHeight = useSharedValue(0);
 
-  // Check if any API key is configured
-  const hasApiKey = !!(
-    state.settings.apiKeys?.alphaVantage ||
-    state.settings.apiKeys?.finnhub ||
-    state.settings.apiKeys?.twelveData ||
-    state.settings.apiKeys?.polygonIo
-  );
+  // Check if Yahoo Finance API key is configured
+  const yahooApiKey = state.settings.apiKeys?.yahooFinance;
+  const hasApiKey = !!yahooApiKey;
 
-  // Search query with debounce - only if API key is configured
-  const { data: searchResults, isLoading } = trpc.stock.search.useQuery(
-    { query: debouncedQuery },
-    {
-      enabled: debouncedQuery.length >= 1 && hasApiKey,
-      staleTime: 30000, // Cache results for 30 seconds
+  // Search results state
+  const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Search stocks using Yahoo Finance RapidAPI directly
+  const searchStocks = useCallback(async (query: string) => {
+    if (!yahooApiKey || !query) {
+      setSearchResults([]);
+      return;
     }
-  );
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/search?search=${encodeURIComponent(query)}`,
+        {
+          method: 'GET',
+          headers: {
+            'x-rapidapi-host': 'yahoo-finance15.p.rapidapi.com',
+            'x-rapidapi-key': yahooApiKey,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Search API response:', JSON.stringify(data, null, 2));
+
+      // Parse response - handle different formats
+      let results: StockSearchResult[] = [];
+
+      if (data?.body && Array.isArray(data.body)) {
+        results = data.body
+          .filter((item: any) => item.symbol && (item.quoteType === 'EQUITY' || item.quoteType === 'ETF'))
+          .slice(0, 8)
+          .map((item: any) => ({
+            symbol: item.symbol,
+            name: item.longname || item.shortname || item.symbol,
+            exchange: item.exchDisp || item.exchange || '',
+            type: item.typeDisp || item.quoteType || 'Stock',
+          }));
+      } else if (data?.quotes && Array.isArray(data.quotes)) {
+        results = data.quotes
+          .filter((item: any) => item.symbol && (item.quoteType === 'EQUITY' || item.quoteType === 'ETF'))
+          .slice(0, 8)
+          .map((item: any) => ({
+            symbol: item.symbol,
+            name: item.longname || item.shortname || item.symbol,
+            exchange: item.exchDisp || item.exchange || '',
+            type: item.typeDisp || item.quoteType || 'Stock',
+          }));
+      }
+
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Error searching stocks:', error);
+      setSearchResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [yahooApiKey]);
 
   // Debounce search input
   useEffect(() => {
@@ -74,13 +127,21 @@ export function SymbolAutocomplete({
       clearTimeout(debounceTimeout.current);
     }
 
+    // Skip search if just selected a symbol
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false;
+      return;
+    }
+
     if (value.length >= 1 && hasApiKey) {
       debounceTimeout.current = setTimeout(() => {
         setDebouncedQuery(value.toUpperCase());
+        searchStocks(value.toUpperCase());
         setShowSuggestions(true);
       }, 300);
     } else {
       setDebouncedQuery('');
+      setSearchResults([]);
       setShowSuggestions(false);
     }
 
@@ -89,7 +150,7 @@ export function SymbolAutocomplete({
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [value, hasApiKey]);
+  }, [value, hasApiKey, searchStocks]);
 
   // Animate dropdown
   useEffect(() => {
@@ -104,11 +165,15 @@ export function SymbolAutocomplete({
   }));
 
   const handleSelect = useCallback((result: StockSearchResult) => {
+    justSelectedRef.current = true;
+    // Immediately hide dropdown (no animation delay)
+    dropdownHeight.value = withTiming(0, { duration: 0 });
+    setShowSuggestions(false);
+    setSearchResults([]);
     onChangeText(result.symbol);
     onSelectSymbol(result.symbol, result.name);
-    setShowSuggestions(false);
     Keyboard.dismiss();
-  }, [onChangeText, onSelectSymbol]);
+  }, [onChangeText, onSelectSymbol, dropdownHeight]);
 
   const handleFocus = useCallback(() => {
     if (value.length >= 1 && searchResults && searchResults.length > 0 && hasApiKey) {

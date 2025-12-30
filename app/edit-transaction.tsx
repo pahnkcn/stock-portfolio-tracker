@@ -9,7 +9,7 @@ import {
   Modal,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -23,7 +23,7 @@ export default function EditTransactionScreen() {
   const colors = useColors();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { state, updateTransaction, deleteTransaction, updateHolding } = useApp();
+  const { state, updateTransaction, deleteTransaction, updateHolding, fetchExchangeRate } = useApp();
 
   // Find the transaction
   const transaction = state.transactions.find(t => t.id === id);
@@ -38,6 +38,7 @@ export default function EditTransactionScreen() {
   const [notes, setNotes] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successType, setSuccessType] = useState<'update' | 'delete'>('update');
@@ -72,6 +73,22 @@ export default function EditTransactionScreen() {
       </ScreenContainer>
     );
   }
+
+  // Fetch current exchange rate from API
+  const handleRefreshExchangeRate = useCallback(async () => {
+    setIsFetchingRate(true);
+    try {
+      const rate = await fetchExchangeRate();
+      setExchangeRate(rate.usdThb.toFixed(2));
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error fetching exchange rate:', error);
+    } finally {
+      setIsFetchingRate(false);
+    }
+  }, [fetchExchangeRate]);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -413,7 +430,16 @@ export default function EditTransactionScreen() {
             entering={FadeInDown.delay(300).duration(300)}
             style={styles.section}
           >
-            <Text style={[styles.label, { color: colors.foreground }]}>Exchange Rate (USD/THB)</Text>
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { color: colors.foreground }]}>Exchange Rate (USD/THB)</Text>
+              {isFetchingRate ? (
+                <Text style={[styles.refreshText, { color: colors.primary }]}>Fetching...</Text>
+              ) : (
+                <TouchableOpacity onPress={handleRefreshExchangeRate}>
+                  <Text style={[styles.refreshText, { color: colors.primary }]}>↻ Live Rate</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <TextInput
               value={exchangeRate}
               onChangeText={setExchangeRate}
@@ -607,6 +633,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  refreshText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   typeToggle: {
     flexDirection: 'row',
