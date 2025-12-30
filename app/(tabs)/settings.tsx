@@ -15,6 +15,7 @@ import { useState, useEffect } from 'react';
 import { ScreenContainer } from '@/components/screen-container';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/use-colors';
+import { useThemeContext } from '@/lib/theme-provider';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import type { ApiKeys } from '@/types';
@@ -38,7 +39,7 @@ const API_KEYS_CONFIG: ApiKeyConfig[] = [
   {
     key: 'finnhub',
     name: 'Finnhub',
-    description: 'Free tier: 60 requests/min for real-time stock data',
+    description: 'Free tier: 60 requests/min for real-time stock data. Some data may not be available.',
     placeholder: 'Enter your Finnhub API key',
     docsUrl: 'https://finnhub.io/register',
   },
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const router = useRouter();
   const { state, updateSettings, updateCurrencyRate } = useApp();
+  const { colorScheme, setColorScheme } = useThemeContext();
   
   const [apiKeys, setApiKeys] = useState<ApiKeys>(state.settings.apiKeys || {});
   const [showInTHB, setShowInTHB] = useState(state.settings.showInTHB);
@@ -112,9 +114,11 @@ export default function SettingsScreen() {
       style={[styles.apiKeyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
     >
       <View style={styles.apiKeyHeader}>
-        <Text style={[styles.apiKeyName, { color: colors.foreground }]}>
-          {config.name}
-        </Text>
+        <View style={styles.apiKeyNameRow}>
+          <Text style={[styles.apiKeyName, { color: colors.foreground }]}>
+            {config.name}
+          </Text>
+        </View>
         <TouchableOpacity
           onPress={() => handleOpenDocs(config.docsUrl)}
           style={[styles.docsButton, { backgroundColor: colors.primary + '15' }]}
@@ -191,11 +195,30 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             Display Settings
           </Text>
-          
+
           <Animated.View
             entering={FadeInDown.delay(200).duration(300)}
             style={[styles.settingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
           >
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingName, { color: colors.foreground }]}>
+                  Dark Mode
+                </Text>
+                <Text style={[styles.settingDescription, { color: colors.foreground, opacity: 0.6 }]}>
+                  Switch between light and dark theme
+                </Text>
+              </View>
+              <Switch
+                value={colorScheme === 'dark'}
+                onValueChange={(value) => setColorScheme(value ? 'dark' : 'light')}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingName, { color: colors.foreground }]}>
@@ -308,7 +331,7 @@ export default function SettingsScreen() {
 
             <View style={styles.aboutRow}>
               <Text style={[styles.aboutLabel, { color: colors.foreground, opacity: 0.6 }]}>Version</Text>
-              <Text style={[styles.aboutValue, { color: colors.foreground }]}>1.0.0</Text>
+              <Text style={[styles.aboutValue, { color: colors.foreground }]}>0.1.0</Text>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.aboutRow}>
@@ -406,6 +429,21 @@ const styles = StyleSheet.create({
   },
   apiKeyName: {
     fontSize: 16,
+    fontWeight: '600',
+  },
+  apiKeyNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  recommendedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  recommendedText: {
+    fontSize: 10,
     fontWeight: '600',
   },
   docsButton: {
