@@ -31,13 +31,16 @@ export function calculatePortfolioValue(
   holdings: Holding[],
   quotes: Record<string, StockQuote>
 ): { totalValue: number; totalCost: number; totalPnL: number; totalPnLPercent: number } {
+  // Filter out holdings with 0 shares
+  const activeHoldings = holdings.filter(h => h.shares > 0);
+
   let totalValue = 0;
   let totalCost = 0;
 
-  for (const holding of holdings) {
+  for (const holding of activeHoldings) {
     const quote = quotes[holding.symbol];
     const currentPrice = quote?.currentPrice || holding.avgCost;
-    
+
     totalValue += holding.shares * currentPrice;
     totalCost += holding.shares * holding.avgCost;
   }
@@ -55,10 +58,13 @@ export function calculateDailyChange(
   holdings: Holding[],
   quotes: Record<string, StockQuote>
 ): { change: number; changePercent: number } {
+  // Filter out holdings with 0 shares
+  const activeHoldings = holdings.filter(h => h.shares > 0);
+
   let totalChange = 0;
   let totalPreviousValue = 0;
 
-  for (const holding of holdings) {
+  for (const holding of activeHoldings) {
     const quote = quotes[holding.symbol];
     if (quote) {
       totalChange += holding.shares * quote.change;
@@ -223,13 +229,16 @@ export function getTopMovers(
   quotes: Record<string, StockQuote>,
   limit: number = 5
 ): { gainers: Holding[]; losers: Holding[] } {
-  const withChange = holdings.map(h => ({
+  // Filter out holdings with 0 shares
+  const activeHoldings = holdings.filter(h => h.shares > 0);
+
+  const withChange = activeHoldings.map(h => ({
     holding: h,
     change: quotes[h.symbol]?.changePercent || 0,
   }));
 
   const sorted = withChange.sort((a, b) => b.change - a.change);
-  
+
   const gainers = sorted.filter(h => h.change > 0).slice(0, limit).map(h => h.holding);
   const losers = sorted.filter(h => h.change < 0).slice(-limit).reverse().map(h => h.holding);
 

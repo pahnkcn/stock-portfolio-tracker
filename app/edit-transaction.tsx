@@ -9,7 +9,7 @@ import {
   Modal,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -43,6 +43,25 @@ export default function EditTransactionScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successType, setSuccessType] = useState<'update' | 'delete'>('update');
 
+  // Use ref to store deleted transaction data (ref updates are synchronous)
+  const deletedTransactionRef = useRef<typeof transaction | null>(null);
+
+  // Fetch current exchange rate from API - must be before any early returns
+  const handleRefreshExchangeRate = useCallback(async () => {
+    setIsFetchingRate(true);
+    try {
+      const rate = await fetchExchangeRate();
+      setExchangeRate(rate.usdThb.toFixed(2));
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error fetching exchange rate:', error);
+    } finally {
+      setIsFetchingRate(false);
+    }
+  }, [fetchExchangeRate]);
+
   // Load transaction data
   useEffect(() => {
     if (transaction) {
@@ -56,7 +75,10 @@ export default function EditTransactionScreen() {
     }
   }, [transaction]);
 
-  if (!transaction) {
+  // Use deletedTransaction data when showing success modal after deletion
+  const currentTransaction = transaction || deletedTransactionRef.current;
+
+  if (!currentTransaction) {
     return (
       <ScreenContainer className="p-6">
         <View style={styles.notFound}>
@@ -73,22 +95,6 @@ export default function EditTransactionScreen() {
       </ScreenContainer>
     );
   }
-
-  // Fetch current exchange rate from API
-  const handleRefreshExchangeRate = useCallback(async () => {
-    setIsFetchingRate(true);
-    try {
-      const rate = await fetchExchangeRate();
-      setExchangeRate(rate.usdThb.toFixed(2));
-      if (Platform.OS !== 'web') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error('Error fetching exchange rate:', error);
-    } finally {
-      setIsFetchingRate(false);
-    }
-  }, [fetchExchangeRate]);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
@@ -159,10 +165,13 @@ export default function EditTransactionScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
 
-      await deleteTransaction(id!);
+      // Save transaction data before deleting for success modal and recalculation
+      deletedTransactionRef.current = currentTransaction;
 
-      // Recalculate holdings
-      await recalculateHoldings();
+      // Recalculate holdings BEFORE deleting (while we still have transaction reference)
+      await recalculateHoldingsForDelete();
+
+      await deleteTransaction(id!);
 
       if (Platform.OS !== 'web') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -173,6 +182,7 @@ export default function EditTransactionScreen() {
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error deleting transaction:', error);
+      deletedTransactionRef.current = null;
       if (Platform.OS !== 'web') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -184,7 +194,7 @@ export default function EditTransactionScreen() {
   const recalculateHoldings = async () => {
     // Get all transactions for this symbol (excluding the one being edited)
     const otherTransactions = state.transactions.filter(
-      t => t.symbol === transaction.symbol && t.id !== id
+      t => t.symbol === currentTransaction.symbol && t.id !== id
     );
 
     // Create the edited transaction with new values
@@ -201,7 +211,7 @@ export default function EditTransactionScreen() {
 
     // Find the holding for this symbol
     const holding = state.holdings.find(
-      h => h.symbol === transaction.symbol && h.portfolioId === transaction.portfolioId
+      h => h.symbol === currentTransaction.symbol && h.portfolioId === currentTransaction.portfolioId
     );
 
     if (holding) {
@@ -234,6 +244,50 @@ export default function EditTransactionScreen() {
           shares: totalShares,
           avgCost: totalCost / totalShares,
           // Exchange rate weighted by cost basis, not shares
+          avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
+        });
+      }
+    }
+  };
+
+  const recalculateHoldingsForDelete = async () => {
+    // Get all transactions for this symbol EXCLUDING the one being deleted
+    const remainingTransactions = state.transactions.filter(
+      t => t.symbol === currentTransaction.symbol && t.id !== id
+    );
+
+    // Find the holding for this symbol
+    const holding = state.holdings.find(
+      h => h.symbol === currentTransaction.symbol && h.portfolioId === currentTransaction.portfolioId
+    );
+
+    if (holding) {
+      // Recalculate shares and average cost from remaining transactions only
+      let totalShares = 0;
+      let totalCost = 0;
+      let totalCostThb = 0;
+
+      remainingTransactions.forEach(t => {
+        if (t.type === 'BUY') {
+          totalShares += t.shares;
+          totalCost += t.shares * t.price;
+          totalCostThb += t.shares * t.price * (t.exchangeRate || 35);
+        } else {
+          totalShares -= t.shares;
+        }
+      });
+
+      if (totalShares <= 0) {
+        // No shares left
+        await updateHolding(holding.id, {
+          shares: 0,
+          avgCost: 0,
+          avgExchangeRate: 35,
+        });
+      } else {
+        await updateHolding(holding.id, {
+          shares: totalShares,
+          avgCost: totalCost / totalShares,
           avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
         });
       }

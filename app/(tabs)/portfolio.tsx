@@ -18,12 +18,13 @@ export default function PortfolioScreen() {
   const [showAddPortfolio, setShowAddPortfolio] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
 
-  // Get holdings for selected portfolio or all holdings
+  // Get holdings for selected portfolio or all holdings (exclude holdings with 0 shares)
   const filteredHoldings = useMemo(() => {
+    const activeHoldings = state.holdings.filter((h) => h.shares > 0);
     if (!selectedPortfolioId) {
-      return state.holdings;
+      return activeHoldings;
     }
-    return state.holdings.filter((h) => h.portfolioId === selectedPortfolioId);
+    return activeHoldings.filter((h) => h.portfolioId === selectedPortfolioId);
   }, [state.holdings, selectedPortfolioId]);
 
   const portfolioStats = useMemo(() => {
