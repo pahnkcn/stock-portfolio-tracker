@@ -49,3 +49,13 @@
 - [x] อัพเดท Dashboard ให้แสดงราคา real-time
 - [x] อัพเดท Stock Detail ให้แสดงราคา real-time
 - [x] เพิ่ม auto-refresh ราคาหุ้น
+
+
+## Trading Performance Enhancement
+
+- [x] คำนวณ Realized P&L จาก closed positions
+- [x] คำนวณ Win Rate จาก completed trades
+- [x] คำนวณ Profit Factor (gross profit / gross loss)
+- [x] คำนวณ Average Win/Loss per trade
+- [x] แสดง Trade History พร้อม P&L แต่ละรายการ
+- [x] อัพเดท Analytics Screen ให้แสดงข้อมูลจริง
