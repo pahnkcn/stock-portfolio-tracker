@@ -157,3 +157,12 @@
 ## Import CSV Bug Fix
 
 - [x] แก้ไข Import CSV ให้ทำงานได้เมื่อแนบไฟล์
+
+
+## Backup & Restore Feature
+
+- [x] สร้างฟังก์ชัน Export ข้อมูลทั้งหมดเป็น JSON
+- [x] สร้างฟังก์ชัน Import ข้อมูลจาก JSON file
+- [x] เพิ่ม UI สำหรับ Backup/Restore ในหน้า Settings
+- [x] รองรับ file download บน Web
+- [x] รองรับ file picker สำหรับ Restore

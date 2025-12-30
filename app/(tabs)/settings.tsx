@@ -10,6 +10,7 @@ import {
   Switch,
   Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { ScreenContainer } from '@/components/screen-container';
 import { useApp } from '@/context/AppContext';
@@ -66,6 +67,7 @@ const API_KEYS_CONFIG: ApiKeyConfig[] = [
 
 export default function SettingsScreen() {
   const colors = useColors();
+  const router = useRouter();
   const { state, updateSettings, updateCurrencyRate } = useApp();
   
   const [apiKeys, setApiKeys] = useState<ApiKeys>(state.settings.apiKeys || {});
@@ -274,6 +276,35 @@ export default function SettingsScreen() {
             <Text style={[styles.currentRate, { color: colors.foreground, opacity: 0.5 }]}>
               Current rate: ฿{state.currencyRate.usdThb.toFixed(2)}
             </Text>
+          </Animated.View>
+        </View>
+
+        {/* Backup & Restore Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            Data Management
+          </Text>
+          
+          <Animated.View
+            entering={FadeInDown.delay(280).duration(300)}
+            style={[styles.settingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingName, { color: colors.foreground }]}>
+                Backup & Restore
+              </Text>
+              <Text style={[styles.settingDescription, { color: colors.foreground, opacity: 0.6 }]}>
+                Export your data as JSON or restore from a backup file
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push('/backup')}
+              style={[styles.backupButton, { backgroundColor: colors.primary + '15' }]}
+            >
+              <Text style={[styles.backupButtonText, { color: colors.primary }]}>
+                Open Backup
+              </Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
 
@@ -489,5 +520,16 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
+  },
+  backupButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  backupButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

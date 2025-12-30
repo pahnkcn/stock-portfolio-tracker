@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, type ReactNode } from 'react';
 import type { Portfolio, Holding, Transaction, StockQuote, CurrencyRate, AppSettings } from '@/types';
+import type { BackupData } from '@/lib/backup';
 import * as storage from '@/lib/storage';
 
 // State type
@@ -144,6 +145,8 @@ interface AppContextType {
   updateCurrencyRate: (rate: number) => Promise<void>;
   // Refresh
   refreshData: () => Promise<void>;
+  // Backup
+  restoreFromBackup: (backup: BackupData) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -293,6 +296,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_LOADING', payload: false });
   }, []);
 
+  // Restore from backup
+  const restoreFromBackup = useCallback(async (backup: BackupData) => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      // Save all data to storage
+      await Promise.all([
+        storage.savePortfolios(backup.data.portfolios),
+        storage.saveHoldings(backup.data.holdings),
+        storage.saveTransactions(backup.data.transactions),
+        storage.saveSettings(backup.data.settings),
+        storage.saveCurrencyRate(backup.data.currencyRate),
+      ]);
+
+      // Update state
+      dispatch({ type: 'SET_PORTFOLIOS', payload: backup.data.portfolios });
+      dispatch({ type: 'SET_HOLDINGS', payload: backup.data.holdings });
+      dispatch({ type: 'SET_TRANSACTIONS', payload: backup.data.transactions });
+      dispatch({ type: 'SET_SETTINGS', payload: backup.data.settings });
+      dispatch({ type: 'SET_CURRENCY_RATE', payload: backup.data.currencyRate });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
+
   const value: AppContextType = {
     state,
     dispatch,
@@ -307,6 +334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateSettings,
     updateCurrencyRate,
     refreshData,
+    restoreFromBackup,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

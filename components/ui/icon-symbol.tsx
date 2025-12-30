@@ -37,6 +37,9 @@ const MAPPING = {
   "checkmark.circle.fill": "check-circle",
   "info.circle.fill": "info",
   "exclamationmark.triangle.fill": "warning",
+  "arrow.up.doc.fill": "upload-file",
+  "arrow.down.doc.fill": "download",
+  "arrow.clockwise": "refresh",
 } as IconMapping;
 
 /**
