@@ -378,7 +378,7 @@ export default function AnalyticsScreen() {
                     <View className="items-end">
                       <Text className="text-muted text-xs">Avg Rate</Text>
                       <Text className="text-foreground text-sm">
-                        ฿{holding.avgPurchaseRate.toFixed(2)}
+                        ฿{(holding.avgPurchaseRate ?? 0).toFixed(2)}
                       </Text>
                     </View>
                   </View>

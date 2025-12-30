@@ -176,10 +176,16 @@ export default function ImportCSVScreen() {
             existingHolding.shares * existingHolding.avgCost +
             holdingData.shares * holdingData.avgCost;
           const newAvgCost = newTotalCost / newTotalShares;
+          
+          // Calculate weighted average exchange rate
+          const existingCostThb = existingHolding.shares * existingHolding.avgCost * (existingHolding.avgExchangeRate || currentRate);
+          const newCostThb = holdingData.shares * holdingData.avgCost * currentRate;
+          const newAvgExchangeRate = (existingCostThb + newCostThb) / newTotalCost;
 
           await updateHolding(existingHolding.id, {
             shares: newTotalShares,
             avgCost: newAvgCost,
+            avgExchangeRate: newAvgExchangeRate,
           });
         } else {
           // Create new holding
