@@ -1,6 +1,6 @@
 import { ScrollView, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { ScreenContainer } from '@/components/screen-container';
 import { useApp } from '@/context/AppContext';
 import { useStockQuote, useStockChart } from '@/hooks/useStockQuotes';
@@ -14,10 +14,18 @@ export default function StockDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch real-time quote
-  const { quote, isLoading: quoteLoading, refresh: refreshQuote } = useStockQuote(symbol || '');
-  
+  const { quote, isLoading: quoteLoading, refresh: refreshQuote, hasApiKey } = useStockQuote(symbol || '');
+
   // Fetch chart data
   const { chart, isLoading: chartLoading, refresh: refreshChart } = useStockChart(symbol || '', '1d', '1mo');
+
+  // Auto-fetch data when screen opens (if API key is configured)
+  useEffect(() => {
+    if (symbol && hasApiKey) {
+      refreshQuote();
+      refreshChart();
+    }
+  }, [symbol, hasApiKey]);
 
   // Find holding for this symbol
   const holding = useMemo(() => {

@@ -1,4 +1,4 @@
-# Stock Portfolio Tracker - TODO
+# TradeMind - TODO
 
 ## Core Features
 

@@ -36,32 +36,11 @@ const API_KEYS_CONFIG: ApiKeyConfig[] = [
     docsUrl: 'https://rapidapi.com/sparior/api/yahoo-finance15',
   },
   {
-    key: 'alphaVantage',
-    name: 'Alpha Vantage',
-    description: 'Free stock data API with 25 requests/day',
-    placeholder: 'Enter your Alpha Vantage API key',
-    docsUrl: 'https://www.alphavantage.co/support/#api-key',
-  },
-  {
     key: 'finnhub',
     name: 'Finnhub',
-    description: 'Real-time stock data with 60 requests/min',
+    description: 'Free tier: 60 requests/min for real-time stock data',
     placeholder: 'Enter your Finnhub API key',
     docsUrl: 'https://finnhub.io/register',
-  },
-  {
-    key: 'twelveData',
-    name: 'Twelve Data',
-    description: 'Stock market data with 800 requests/day',
-    placeholder: 'Enter your Twelve Data API key',
-    docsUrl: 'https://twelvedata.com/account/api-keys',
-  },
-  {
-    key: 'polygonIo',
-    name: 'Polygon.io',
-    description: 'Comprehensive market data API',
-    placeholder: 'Enter your Polygon.io API key',
-    docsUrl: 'https://polygon.io/dashboard/api-keys',
   },
 ];
 
@@ -313,20 +292,45 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             About
           </Text>
-          
+
           <Animated.View
             entering={FadeInDown.delay(300).duration(300)}
             style={[styles.settingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
           >
+            <View style={styles.aboutHeader}>
+              <Text style={[styles.appName, { color: colors.foreground }]}>TradeMind</Text>
+              <Text style={[styles.appTagline, { color: colors.foreground, opacity: 0.6 }]}>
+                Track your investments with ease
+              </Text>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
             <View style={styles.aboutRow}>
               <Text style={[styles.aboutLabel, { color: colors.foreground, opacity: 0.6 }]}>Version</Text>
               <Text style={[styles.aboutValue, { color: colors.foreground }]}>1.0.0</Text>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <View style={styles.aboutRow}>
-              <Text style={[styles.aboutLabel, { color: colors.foreground, opacity: 0.6 }]}>Data Source</Text>
-              <Text style={[styles.aboutValue, { color: colors.foreground }]}>Yahoo Finance</Text>
+              <Text style={[styles.aboutLabel, { color: colors.foreground, opacity: 0.6 }]}>Platform</Text>
+              <Text style={[styles.aboutValue, { color: colors.foreground }]}>React Native / Expo</Text>
             </View>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.aboutRow}>
+              <Text style={[styles.aboutLabel, { color: colors.foreground, opacity: 0.6 }]}>Data Sources</Text>
+              <Text style={[styles.aboutValue, { color: colors.foreground }]}>Yahoo Finance, Finnhub</Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.aboutRow}>
+              <Text style={[styles.aboutLabel, { color: colors.foreground, opacity: 0.6 }]}>Developer</Text>
+              <Text style={[styles.aboutValue, { color: colors.foreground }]}>Pahn Kanchanop</Text>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <Text style={[styles.aboutFooter, { color: colors.foreground, opacity: 0.5 }]}>
+              Built with React Native and Expo. Uses real-time market data from Yahoo Finance and Finnhub APIs.
+            </Text>
           </Animated.View>
         </View>
 
@@ -490,6 +494,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
+  aboutHeader: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  appName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  appTagline: {
+    fontSize: 14,
+  },
   aboutRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -502,6 +518,12 @@ const styles = StyleSheet.create({
   aboutValue: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  aboutFooter: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingTop: 8,
   },
   divider: {
     height: 1,

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { trpc } from '@/lib/trpc';
 import { useApp } from '@/context/AppContext';
 import type { StockQuote } from '@/types';
@@ -8,19 +8,19 @@ export function useStockQuotes() {
 
   // Get unique symbols from holdings
   const symbols = [...new Set(state.holdings.filter(h => h.shares > 0).map((h) => h.symbol))];
-  
-  // Check if any API key is configured (including Yahoo Finance)
-  const hasApiKey = !!(
-    state.settings.apiKeys?.yahooFinance ||
-    state.settings.apiKeys?.alphaVantage ||
-    state.settings.apiKeys?.finnhub ||
-    state.settings.apiKeys?.twelveData ||
-    state.settings.apiKeys?.polygonIo
-  );
+
+  // Get API keys from settings
+  const apiKeys = useMemo(() => ({
+    yahooFinance: state.settings.apiKeys?.yahooFinance,
+    finnhub: state.settings.apiKeys?.finnhub,
+  }), [state.settings.apiKeys?.yahooFinance, state.settings.apiKeys?.finnhub]);
+
+  // Check if any API key is configured (Yahoo Finance or Finnhub)
+  const hasApiKey = !!(apiKeys.yahooFinance || apiKeys.finnhub);
 
   // tRPC query for multiple quotes - manual fetch only, no auto-refresh
   const quotesQuery = trpc.stock.getMultipleQuotes.useQuery(
-    { symbols },
+    { symbols, apiKeys },
     {
       enabled: false, // Disable auto-fetch, only manual refresh
       staleTime: Infinity, // Never consider data stale automatically
@@ -83,18 +83,18 @@ export function useStockQuotes() {
  */
 export function useStockQuote(symbol: string) {
   const { state } = useApp();
-  
-  // Check if any API key is configured (including Yahoo Finance)
-  const hasApiKey = !!(
-    state.settings.apiKeys?.yahooFinance ||
-    state.settings.apiKeys?.alphaVantage ||
-    state.settings.apiKeys?.finnhub ||
-    state.settings.apiKeys?.twelveData ||
-    state.settings.apiKeys?.polygonIo
-  );
+
+  // Get API keys from settings
+  const apiKeys = useMemo(() => ({
+    yahooFinance: state.settings.apiKeys?.yahooFinance,
+    finnhub: state.settings.apiKeys?.finnhub,
+  }), [state.settings.apiKeys?.yahooFinance, state.settings.apiKeys?.finnhub]);
+
+  // Check if any API key is configured (Yahoo Finance or Finnhub)
+  const hasApiKey = !!(apiKeys.yahooFinance || apiKeys.finnhub);
 
   const quoteQuery = trpc.stock.getQuote.useQuery(
-    { symbol },
+    { symbol, apiKeys },
     {
       enabled: false, // Disable auto-fetch
       staleTime: Infinity,
@@ -128,18 +128,18 @@ export function useStockChart(
   range: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max' = '1mo'
 ) {
   const { state } = useApp();
-  
-  // Check if any API key is configured (including Yahoo Finance)
-  const hasApiKey = !!(
-    state.settings.apiKeys?.yahooFinance ||
-    state.settings.apiKeys?.alphaVantage ||
-    state.settings.apiKeys?.finnhub ||
-    state.settings.apiKeys?.twelveData ||
-    state.settings.apiKeys?.polygonIo
-  );
+
+  // Get API keys from settings
+  const apiKeys = useMemo(() => ({
+    yahooFinance: state.settings.apiKeys?.yahooFinance,
+    finnhub: state.settings.apiKeys?.finnhub,
+  }), [state.settings.apiKeys?.yahooFinance, state.settings.apiKeys?.finnhub]);
+
+  // Check if any API key is configured (Yahoo Finance or Finnhub)
+  const hasApiKey = !!(apiKeys.yahooFinance || apiKeys.finnhub);
 
   const chartQuery = trpc.stock.getChart.useQuery(
-    { symbol, interval, range },
+    { symbol, interval, range, apiKeys },
     {
       enabled: false, // Disable auto-fetch
       staleTime: Infinity,

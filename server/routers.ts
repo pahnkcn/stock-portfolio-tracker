@@ -36,7 +36,7 @@ export const appRouter = router({
     search: publicProcedure
       .input(stockSearchInputSchema)
       .query(async ({ input }) => {
-        const results = await searchStockSymbols(input.query);
+        const results = await searchStockSymbols(input.query, input.apiKeys);
         return results;
       }),
 
@@ -44,7 +44,7 @@ export const appRouter = router({
     getQuote: publicProcedure
       .input(stockQuoteInputSchema)
       .query(async ({ input }) => {
-        const quote = await getStockQuote(input.symbol);
+        const quote = await getStockQuote(input.symbol, input.apiKeys);
         return quote;
       }),
 
@@ -52,7 +52,7 @@ export const appRouter = router({
     getChart: publicProcedure
       .input(stockChartInputSchema)
       .query(async ({ input }) => {
-        const chart = await getStockChart(input.symbol, input.interval, input.range);
+        const chart = await getStockChart(input.symbol, input.interval, input.range, input.apiKeys);
         return chart;
       }),
 
@@ -60,7 +60,7 @@ export const appRouter = router({
     getMultipleQuotes: publicProcedure
       .input(multipleQuotesInputSchema)
       .query(async ({ input }) => {
-        const quotes = await getMultipleStockQuotes(input.symbols);
+        const quotes = await getMultipleStockQuotes(input.symbols, input.apiKeys);
         return quotes;
       }),
   }),

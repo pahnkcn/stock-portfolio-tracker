@@ -18,7 +18,7 @@ const MAPPING = {
   "paperplane.fill": "send",
   "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-right",
-  // Stock Portfolio Tracker icons
+  // TradeMind icons
   "chart.pie.fill": "pie-chart",
   "list.bullet.rectangle.fill": "receipt-long",
   "chart.bar.fill": "bar-chart",

@@ -43,6 +43,13 @@ export default function DashboardScreen() {
   // Use stock quotes with manual refresh only
   const { quotes, isLoading: quotesLoading, isFetching, refresh: refreshQuotes, lastUpdated, hasApiKey, hasSymbols } = useStockQuotes();
 
+  // Auto-fetch quotes when app opens (if API key is configured and has symbols)
+  useEffect(() => {
+    if (hasApiKey && hasSymbols && !lastUpdated) {
+      refreshQuotes();
+    }
+  }, [hasApiKey, hasSymbols, lastUpdated]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([refreshData(), refreshQuotes()]);
@@ -112,7 +119,7 @@ export default function DashboardScreen() {
         <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
           <View>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>Dashboard</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.foreground, opacity: 0.6 }]}>Stock Portfolio Tracker</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.foreground, opacity: 0.6 }]}>TradeMind</Text>
           </View>
           {/* Real-time indicator */}
           <View style={styles.statusContainer}>

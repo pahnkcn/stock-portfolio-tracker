@@ -85,3 +85,6 @@ drizzle/
 *.bak
 *.tmp
 *.temp
+
+# History
+.history/

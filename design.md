@@ -1,4 +1,4 @@
-# Stock Portfolio Tracker - Mobile App Design
+# TradeMind - Mobile App Design
 
 ## Overview
 แอพสำหรับติดตามการลงทุนหุ้นอเมริกา พร้อมระบบ AI Analysis, Technical Analysis, Realtime Stock Data และ Performance Analytics รองรับการ Import ข้อมูลจาก CSV (Monthly Statement)

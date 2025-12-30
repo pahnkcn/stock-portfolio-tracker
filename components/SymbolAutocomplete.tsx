@@ -52,64 +52,98 @@ export function SymbolAutocomplete({
   // Animation values
   const dropdownHeight = useSharedValue(0);
 
-  // Check if Yahoo Finance API key is configured
+  // Check if API keys are configured
   const yahooApiKey = state.settings.apiKeys?.yahooFinance;
-  const hasApiKey = !!yahooApiKey;
+  const finnhubApiKey = state.settings.apiKeys?.finnhub;
+  const hasApiKey = !!(yahooApiKey || finnhubApiKey);
 
   // Search results state
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Search stocks using Yahoo Finance RapidAPI directly
+  // Search stocks using Yahoo Finance or Finnhub API
   const searchStocks = useCallback(async (query: string) => {
-    if (!yahooApiKey || !query) {
+    if (!query || !hasApiKey) {
       setSearchResults([]);
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/search?search=${encodeURIComponent(query)}`,
-        {
-          method: 'GET',
-          headers: {
-            'x-rapidapi-host': 'yahoo-finance15.p.rapidapi.com',
-            'x-rapidapi-key': yahooApiKey,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Search API response:', JSON.stringify(data, null, 2));
-
-      // Parse response - handle different formats
       let results: StockSearchResult[] = [];
 
-      if (data?.body && Array.isArray(data.body)) {
-        results = data.body
-          .filter((item: any) => item.symbol && (item.quoteType === 'EQUITY' || item.quoteType === 'ETF'))
-          .slice(0, 8)
-          .map((item: any) => ({
-            symbol: item.symbol,
-            name: item.longname || item.shortname || item.symbol,
-            exchange: item.exchDisp || item.exchange || '',
-            type: item.typeDisp || item.quoteType || 'Stock',
-          }));
-      } else if (data?.quotes && Array.isArray(data.quotes)) {
-        results = data.quotes
-          .filter((item: any) => item.symbol && (item.quoteType === 'EQUITY' || item.quoteType === 'ETF'))
-          .slice(0, 8)
-          .map((item: any) => ({
-            symbol: item.symbol,
-            name: item.longname || item.shortname || item.symbol,
-            exchange: item.exchDisp || item.exchange || '',
-            type: item.typeDisp || item.quoteType || 'Stock',
-          }));
+      // Try Yahoo Finance first if available
+      if (yahooApiKey) {
+        try {
+          const response = await fetch(
+            `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/search?search=${encodeURIComponent(query)}`,
+            {
+              method: 'GET',
+              headers: {
+                'x-rapidapi-host': 'yahoo-finance15.p.rapidapi.com',
+                'x-rapidapi-key': yahooApiKey,
+              },
+            }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Yahoo Search API response:', JSON.stringify(data, null, 2));
+
+            if (data?.body && Array.isArray(data.body)) {
+              results = data.body
+                .filter((item: any) => item.symbol && (item.quoteType === 'EQUITY' || item.quoteType === 'ETF'))
+                .slice(0, 8)
+                .map((item: any) => ({
+                  symbol: item.symbol,
+                  name: item.longname || item.shortname || item.symbol,
+                  exchange: item.exchDisp || item.exchange || '',
+                  type: item.typeDisp || item.quoteType || 'Stock',
+                }));
+            } else if (data?.quotes && Array.isArray(data.quotes)) {
+              results = data.quotes
+                .filter((item: any) => item.symbol && (item.quoteType === 'EQUITY' || item.quoteType === 'ETF'))
+                .slice(0, 8)
+                .map((item: any) => ({
+                  symbol: item.symbol,
+                  name: item.longname || item.shortname || item.symbol,
+                  exchange: item.exchDisp || item.exchange || '',
+                  type: item.typeDisp || item.quoteType || 'Stock',
+                }));
+            }
+          }
+        } catch (yahooError) {
+          console.warn('Yahoo Finance search failed:', yahooError);
+        }
+      }
+
+      // Try Finnhub if Yahoo Finance didn't return results
+      if (results.length === 0 && finnhubApiKey) {
+        try {
+          const response = await fetch(
+            `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${finnhubApiKey}`
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Finnhub Search API response:', JSON.stringify(data, null, 2));
+
+            // Finnhub returns: { count: number, result: [{ description, displaySymbol, symbol, type }] }
+            if (data?.result && Array.isArray(data.result)) {
+              results = data.result
+                .filter((item: any) => item.symbol && (item.type === 'Common Stock' || item.type === 'ETF'))
+                .slice(0, 8)
+                .map((item: any) => ({
+                  symbol: item.displaySymbol || item.symbol,
+                  name: item.description || item.symbol,
+                  exchange: '',
+                  type: item.type === 'Common Stock' ? 'Equity' : item.type,
+                }));
+            }
+          }
+        } catch (finnhubError) {
+          console.warn('Finnhub search failed:', finnhubError);
+        }
       }
 
       setSearchResults(results);
@@ -119,7 +153,7 @@ export function SymbolAutocomplete({
     } finally {
       setIsLoading(false);
     }
-  }, [yahooApiKey]);
+  }, [yahooApiKey, finnhubApiKey, hasApiKey]);
 
   // Debounce search input
   useEffect(() => {

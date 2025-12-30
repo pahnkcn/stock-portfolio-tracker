@@ -257,9 +257,6 @@ export interface AppSettings {
 
 // API Keys Configuration
 export interface ApiKeys {
-  alphaVantage?: string;
-  finnhub?: string;
-  polygonIo?: string;
-  twelveData?: string;
   yahooFinance?: string;
+  finnhub?: string;
 }
