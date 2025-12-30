@@ -1,4 +1,4 @@
-import { ScrollView, Text, View, StyleSheet, RefreshControl } from 'react-native';
+import { ScrollView, Text, View, RefreshControl, StyleSheet } from 'react-native';
 import { useMemo, useState, useCallback } from 'react';
 import { ScreenContainer } from '@/components/screen-container';
 import { useApp } from '@/context/AppContext';
@@ -10,6 +10,11 @@ import {
   calculateSymbolPerformance,
   type CompletedTrade,
 } from '@/lib/trading-performance';
+import {
+  calculatePortfolioCurrencyPnL,
+  calculateRealizedCurrencyPnL,
+  calculateRealizedCurrencyPnLSummary,
+} from '@/lib/currency-pnl';
 import { useColors } from '@/hooks/use-colors';
 
 export default function AnalyticsScreen() {
@@ -38,6 +43,25 @@ export default function AnalyticsScreen() {
   const symbolPerf = useMemo(() => {
     return calculateSymbolPerformance(performance.completedTrades);
   }, [performance.completedTrades]);
+
+  // Calculate currency P&L analysis
+  const currencyAnalysis = useMemo(() => {
+    if (state.holdings.length === 0) return null;
+    return calculatePortfolioCurrencyPnL(
+      state.holdings,
+      quotes,
+      state.currencyRate.usdThb
+    );
+  }, [state.holdings, quotes, state.currencyRate.usdThb]);
+
+  // Calculate realized currency P&L
+  const realizedCurrencyPnL = useMemo(() => {
+    return calculateRealizedCurrencyPnL(state.transactions);
+  }, [state.transactions]);
+
+  const realizedCurrencySummary = useMemo(() => {
+    return calculateRealizedCurrencyPnLSummary(realizedCurrencyPnL);
+  }, [realizedCurrencyPnL]);
 
   // Get sorted months (most recent first)
   const sortedMonths = useMemo(() => {
@@ -162,6 +186,207 @@ export default function AnalyticsScreen() {
             </View>
           </View>
         </View>
+
+        {/* Currency P&L Analysis Section */}
+        {currencyAnalysis && state.settings.showInTHB && (
+          <View className="px-5 py-3">
+            <Text className="text-foreground text-lg font-semibold mb-3">
+              Currency P&L Analysis (THB)
+            </Text>
+            <View className="bg-surface rounded-xl p-5 border border-border">
+              {/* Total P&L in THB */}
+              <View className="mb-4">
+                <Text className="text-muted text-sm mb-1">Total P&L (THB)</Text>
+                <Text
+                  style={{ color: currencyAnalysis.totalPnLThb >= 0 ? colors.success : colors.error }}
+                  className="text-2xl font-bold"
+                >
+                  ฿{Math.abs(currencyAnalysis.totalPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  {currencyAnalysis.totalPnLThb < 0 ? ' (Loss)' : ''}
+                </Text>
+              </View>
+
+              {/* Breakdown */}
+              <View className="pt-4 border-t border-border">
+                <Text className="text-muted text-xs mb-3">P&L Breakdown</Text>
+                
+                {/* Stock P&L */}
+                <View className="flex-row justify-between items-center mb-3">
+                  <View className="flex-row items-center">
+                    <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: colors.primary }} />
+                    <Text className="text-foreground">Stock P&L</Text>
+                  </View>
+                  <View className="items-end">
+                    <Text
+                      style={{ color: currencyAnalysis.totalStockPnLThb >= 0 ? colors.success : colors.error }}
+                      className="font-semibold"
+                    >
+                      ฿{Math.abs(currencyAnalysis.totalStockPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      {currencyAnalysis.totalStockPnLThb < 0 ? ' (Loss)' : ''}
+                    </Text>
+                    <Text className="text-muted text-xs">
+                      {formatPercent(currencyAnalysis.totalStockPnLPercent)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Currency P&L */}
+                <View className="flex-row justify-between items-center mb-3">
+                  <View className="flex-row items-center">
+                    <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: colors.warning }} />
+                    <Text className="text-foreground">Currency P&L</Text>
+                  </View>
+                  <View className="items-end">
+                    <Text
+                      style={{ color: currencyAnalysis.totalCurrencyPnLThb >= 0 ? colors.success : colors.error }}
+                      className="font-semibold"
+                    >
+                      {currencyAnalysis.totalCurrencyPnLThb >= 0 ? '+' : '-'}฿{Math.abs(currencyAnalysis.totalCurrencyPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </Text>
+                    <Text className="text-muted text-xs">
+                      {formatPercent(currencyAnalysis.totalCurrencyPnLPercent)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Contribution Bar */}
+                <View className="mt-2">
+                  <View className="flex-row h-3 rounded-full overflow-hidden bg-border">
+                    {(() => {
+                      const totalAbs = Math.abs(currencyAnalysis.totalStockPnLThb) + Math.abs(currencyAnalysis.totalCurrencyPnLThb);
+                      const stockPercent = totalAbs > 0 ? (Math.abs(currencyAnalysis.totalStockPnLThb) / totalAbs) * 100 : 50;
+                      return (
+                        <>
+                          <View style={{ width: `${stockPercent}%`, backgroundColor: colors.primary }} />
+                          <View style={{ width: `${100 - stockPercent}%`, backgroundColor: colors.warning }} />
+                        </>
+                      );
+                    })()}
+                  </View>
+                  <View className="flex-row justify-between mt-1">
+                    <Text className="text-muted text-xs">Stock</Text>
+                    <Text className="text-muted text-xs">Currency</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Exchange Rate Info */}
+              <View className="mt-4 pt-4 border-t border-border">
+                <View className="flex-row justify-between">
+                  <Text className="text-muted text-sm">Current Rate</Text>
+                  <Text className="text-foreground font-semibold">
+                    1 USD = ฿{currencyAnalysis.currentRate.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Realized Currency P&L Summary */}
+        {realizedCurrencySummary.tradeCount > 0 && state.settings.showInTHB && (
+          <View className="px-5 py-3">
+            <Text className="text-foreground text-lg font-semibold mb-3">
+              Realized Currency P&L
+            </Text>
+            <View className="bg-surface rounded-xl border border-border overflow-hidden">
+              <View className="flex-row justify-between p-4 border-b border-border">
+                <Text className="text-muted">Total Stock P&L (THB)</Text>
+                <Text
+                  style={{ color: realizedCurrencySummary.totalStockPnLThb >= 0 ? colors.success : colors.error }}
+                  className="font-semibold"
+                >
+                  ฿{Math.abs(realizedCurrencySummary.totalStockPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </Text>
+              </View>
+              <View className="flex-row justify-between p-4 border-b border-border">
+                <Text className="text-muted">Total Currency P&L (THB)</Text>
+                <Text
+                  style={{ color: realizedCurrencySummary.totalCurrencyPnLThb >= 0 ? colors.success : colors.error }}
+                  className="font-semibold"
+                >
+                  {realizedCurrencySummary.totalCurrencyPnLThb >= 0 ? '+' : '-'}฿{Math.abs(realizedCurrencySummary.totalCurrencyPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </Text>
+              </View>
+              <View className="flex-row justify-between p-4 border-b border-border">
+                <Text className="text-muted">Combined P&L (THB)</Text>
+                <Text
+                  style={{ color: realizedCurrencySummary.totalPnLThb >= 0 ? colors.success : colors.error }}
+                  className="font-semibold"
+                >
+                  ฿{Math.abs(realizedCurrencySummary.totalPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </Text>
+              </View>
+              <View className="flex-row justify-between p-4">
+                <Text className="text-muted">Completed Trades</Text>
+                <Text className="text-foreground font-semibold">{realizedCurrencySummary.tradeCount}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Per-Holding Currency Analysis */}
+        {currencyAnalysis && currencyAnalysis.holdings.length > 0 && state.settings.showInTHB && (
+          <View className="px-5 py-3">
+            <Text className="text-foreground text-lg font-semibold mb-3">
+              Holdings Currency Breakdown
+            </Text>
+            <View className="bg-surface rounded-xl border border-border overflow-hidden">
+              {currencyAnalysis.holdings.slice(0, 5).map((holding, index) => (
+                <View
+                  key={holding.symbol}
+                  className={`p-4 ${index > 0 ? 'border-t border-border' : ''}`}
+                >
+                  <View className="flex-row justify-between items-start mb-2">
+                    <View>
+                      <Text className="text-foreground font-semibold">{holding.symbol}</Text>
+                      <Text className="text-muted text-xs">
+                        {holding.shares.toFixed(2)} shares
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text
+                        style={{ color: holding.totalPnLThb >= 0 ? colors.success : colors.error }}
+                        className="font-semibold"
+                      >
+                        ฿{Math.abs(holding.totalPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      </Text>
+                      <Text className="text-muted text-xs">
+                        {formatPercent(holding.totalPnLPercent)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <View>
+                      <Text className="text-muted text-xs">Stock P&L</Text>
+                      <Text
+                        style={{ color: holding.stockPnLThb >= 0 ? colors.success : colors.error }}
+                        className="text-sm"
+                      >
+                        ฿{Math.abs(holding.stockPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      </Text>
+                    </View>
+                    <View className="items-center">
+                      <Text className="text-muted text-xs">Currency P&L</Text>
+                      <Text
+                        style={{ color: holding.currencyPnLThb >= 0 ? colors.success : colors.error }}
+                        className="text-sm"
+                      >
+                        {holding.currencyPnLThb >= 0 ? '+' : '-'}฿{Math.abs(holding.currencyPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-muted text-xs">Avg Rate</Text>
+                      <Text className="text-foreground text-sm">
+                        ฿{holding.avgPurchaseRate.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Trading Performance Stats */}
         <View className="px-4 py-3">
@@ -408,7 +633,7 @@ export default function AnalyticsScreen() {
           <View className="bg-surface rounded-xl p-4 border border-border">
             <View className="flex-row justify-between items-center mb-3">
               <Text className="text-muted text-sm">Total Holdings</Text>
-              <Text className="text-foreground font-semibold">{state.holdings.length} stocks</Text>
+              <Text className="text-foreground font-semibold">{state.holdings.filter(h => h.shares > 0).length} stocks</Text>
             </View>
             <View className="flex-row justify-between items-center mb-3">
               <Text className="text-muted text-sm">Total Portfolios</Text>

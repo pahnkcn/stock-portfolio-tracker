@@ -9,6 +9,18 @@ import {
 } from '../calculations';
 import type { Holding, StockQuote, Transaction } from '@/types';
 
+// Helper function to create holding with default avgExchangeRate
+const createHolding = (data: Omit<Holding, 'avgExchangeRate'> & { avgExchangeRate?: number }): Holding => ({
+  ...data,
+  avgExchangeRate: data.avgExchangeRate ?? 34.50,
+});
+
+// Helper function to create transaction with default exchangeRate
+const createTransaction = (data: Omit<Transaction, 'exchangeRate'> & { exchangeRate?: number }): Transaction => ({
+  ...data,
+  exchangeRate: data.exchangeRate ?? 34.50,
+});
+
 describe('Calculations', () => {
   describe('calculatePnL', () => {
     it('should calculate positive P&L correctly', () => {
@@ -92,7 +104,7 @@ describe('Calculations', () => {
 
   describe('calculatePortfolioValue', () => {
     const holdings: Holding[] = [
-      {
+      createHolding({
         id: '1',
         portfolioId: 'p1',
         symbol: 'AAPL',
@@ -100,8 +112,8 @@ describe('Calculations', () => {
         shares: 10,
         avgCost: 150,
         lots: [],
-      },
-      {
+      }),
+      createHolding({
         id: '2',
         portfolioId: 'p1',
         symbol: 'NVDA',
@@ -109,7 +121,7 @@ describe('Calculations', () => {
         shares: 5,
         avgCost: 100,
         lots: [],
-      },
+      }),
     ];
 
     const quotes: Record<string, StockQuote> = {
@@ -181,7 +193,7 @@ describe('Calculations', () => {
 
   describe('calculatePerformanceStats', () => {
     const transactions: Transaction[] = [
-      {
+      createTransaction({
         id: '1',
         portfolioId: 'p1',
         symbol: 'AAPL',
@@ -194,8 +206,8 @@ describe('Calculations', () => {
         commission: 1,
         vat: 0.07,
         netAmount: 1001.07,
-      },
-      {
+      }),
+      createTransaction({
         id: '2',
         portfolioId: 'p1',
         symbol: 'AAPL',
@@ -208,7 +220,7 @@ describe('Calculations', () => {
         commission: 1.2,
         vat: 0.08,
         netAmount: 1198.72,
-      },
+      }),
     ];
 
     it('should calculate win rate', () => {

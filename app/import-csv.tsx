@@ -143,6 +143,7 @@ export default function ImportCSVScreen() {
 
     try {
       // Convert parsed data to transactions
+      const currentRate = state.currencyRate.usdThb;
       const transactions: Omit<Transaction, 'id'>[] = parsedData.map((row) => ({
         portfolioId: selectedPortfolioId,
         symbol: row.symbol,
@@ -156,6 +157,7 @@ export default function ImportCSVScreen() {
         commission: row.commission,
         vat: row.vat,
         netAmount: row.netAmount,
+        exchangeRate: currentRate, // Use current rate for imported transactions
       }));
 
       // Import transactions
@@ -187,6 +189,7 @@ export default function ImportCSVScreen() {
             companyName: holdingData.companyName,
             shares: holdingData.shares,
             avgCost: holdingData.avgCost,
+            avgExchangeRate: currentRate, // Use current rate for imported holdings
             lots: [],
           });
         }

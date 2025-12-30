@@ -1,5 +1,5 @@
 import { ScrollView, Text, View, RefreshControl, ActivityIndicator } from 'react-native';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { ScreenContainer } from '@/components/screen-container';
 import { PortfolioCard } from '@/components/PortfolioCard';
 import { HoldingCard } from '@/components/HoldingCard';
@@ -7,6 +7,7 @@ import { QuickActions } from '@/components/QuickActions';
 import { useApp } from '@/context/AppContext';
 import { useStockQuotes } from '@/hooks/useStockQuotes';
 import { calculatePortfolioValue, calculateDailyChange, getTopMovers } from '@/lib/calculations';
+import { calculatePortfolioCurrencyPnL } from '@/lib/currency-pnl';
 import { useColors } from '@/hooks/use-colors';
 
 export default function DashboardScreen() {
@@ -37,6 +38,16 @@ export default function DashboardScreen() {
   const topMovers = useMemo(() => {
     return getTopMovers(state.holdings, quotes, 3);
   }, [state.holdings, quotes]);
+
+  // Calculate currency P&L breakdown
+  const currencyAnalysis = useMemo(() => {
+    if (state.holdings.length === 0) return null;
+    return calculatePortfolioCurrencyPnL(
+      state.holdings,
+      quotes,
+      state.currencyRate.usdThb
+    );
+  }, [state.holdings, quotes, state.currencyRate.usdThb]);
 
   // Format last updated time
   const lastUpdatedText = useMemo(() => {
@@ -87,7 +98,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Portfolio Summary Card */}
+        {/* Portfolio Summary Card with Currency P&L Breakdown */}
         <View className="px-5 py-3">
           <PortfolioCard
             totalValue={portfolioStats.totalValue}
@@ -98,6 +109,7 @@ export default function DashboardScreen() {
             dailyChangePercent={dailyStats.changePercent}
             showInTHB={state.settings.showInTHB}
             usdThbRate={state.currencyRate.usdThb}
+            currencyAnalysis={currencyAnalysis}
           />
         </View>
 
@@ -126,7 +138,7 @@ export default function DashboardScreen() {
               </Text>
             </View>
           ) : (
-            state.holdings.slice(0, 5).map((holding) => (
+            state.holdings.filter(h => h.shares > 0).slice(0, 5).map((holding) => (
               <HoldingCard
                 key={holding.id}
                 holding={holding}
@@ -137,9 +149,9 @@ export default function DashboardScreen() {
             ))
           )}
 
-          {state.holdings.length > 5 && (
+          {state.holdings.filter(h => h.shares > 0).length > 5 && (
             <Text className="text-primary text-center text-sm mt-2">
-              View all {state.holdings.length} holdings in Portfolio tab
+              View all {state.holdings.filter(h => h.shares > 0).length} holdings in Portfolio tab
             </Text>
           )}
         </View>
@@ -200,9 +212,14 @@ export default function DashboardScreen() {
                     </View>
                     <Text className="text-foreground font-semibold">{tx.symbol}</Text>
                   </View>
-                  <Text className="text-foreground font-medium">
-                    {tx.shares} @ ${tx.price.toFixed(2)}
-                  </Text>
+                  <View className="items-end">
+                    <Text className="text-foreground font-medium">
+                      {tx.shares} @ ${tx.price.toFixed(2)}
+                    </Text>
+                    <Text className="text-muted text-xs">
+                      Rate: ฿{tx.exchangeRate?.toFixed(2) || '-'}
+                    </Text>
+                  </View>
                 </View>
               </View>
             ))}

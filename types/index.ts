@@ -14,6 +14,7 @@ export interface Holding {
   companyName: string;
   shares: number;
   avgCost: number;
+  avgExchangeRate: number; // Average USD/THB rate at purchase
   lots: Lot[];
 }
 
@@ -23,6 +24,7 @@ export interface Lot {
   price: number;
   date: string;
   commission: number;
+  exchangeRate: number; // USD/THB rate at purchase date
 }
 
 // Transaction Types
@@ -42,6 +44,7 @@ export interface Transaction {
   commission: number;
   vat: number;
   netAmount: number;
+  exchangeRate: number; // USD/THB rate at transaction date
   notes?: string;
   tags?: string[];
   emotion?: 'confident' | 'FOMO' | 'panic' | 'planned';
@@ -125,6 +128,99 @@ export interface CurrencyRate {
   lastUpdated: string;
 }
 
+export interface ExchangeRateHistory {
+  date: string;
+  rate: number;
+}
+
+// Currency P&L Types
+export interface CurrencyPnLBreakdown {
+  // Stock P&L (from price change)
+  stockPnLUsd: number;
+  stockPnLThb: number;
+  stockPnLPercent: number;
+  
+  // Currency P&L (from exchange rate change)
+  currencyPnLThb: number;
+  currencyPnLPercent: number;
+  
+  // Total P&L in THB
+  totalPnLThb: number;
+  totalPnLPercent: number;
+  
+  // Cost basis
+  costUsd: number;
+  costThb: number;
+  avgPurchaseRate: number;
+  
+  // Current value
+  valueUsd: number;
+  valueThb: number;
+  currentRate: number;
+}
+
+export interface HoldingCurrencyAnalysis {
+  symbol: string;
+  companyName: string;
+  shares: number;
+  costUsd: number;
+  costThb: number;
+  avgPurchaseRate: number;
+  currentRate: number;
+  currentPriceUsd: number;
+  valueUsd: number;
+  valueThb: number;
+  stockPnLUsd: number;
+  stockPnLThb: number;
+  stockPnLPercent: number;
+  currencyPnLThb: number;
+  currencyPnLPercent: number;
+  totalPnLThb: number;
+  totalPnLPercent: number;
+}
+
+export interface PortfolioCurrencyAnalysis {
+  // Summary
+  totalCostUsd: number;
+  totalCostThb: number;
+  totalValueUsd: number;
+  totalValueThb: number;
+  
+  // P&L Breakdown
+  totalStockPnLUsd: number;
+  totalStockPnLThb: number;
+  totalStockPnLPercent: number;
+  totalCurrencyPnLThb: number;
+  totalCurrencyPnLPercent: number;
+  totalPnLThb: number;
+  totalPnLPercent: number;
+  
+  // Today's change
+  todayChangeUsd: number;
+  todayChangeThb: number;
+  
+  // Current rate
+  currentRate: number;
+  
+  // Per-holding breakdown
+  holdings: HoldingCurrencyAnalysis[];
+}
+
+export interface RealizedCurrencyPnL {
+  tradeId: string;
+  symbol: string;
+  sellDate: string;
+  shares: number;
+  buyPriceUsd: number;
+  sellPriceUsd: number;
+  buyRate: number;
+  sellRate: number;
+  stockPnLUsd: number;
+  stockPnLThb: number;
+  currencyPnLThb: number;
+  totalPnLThb: number;
+}
+
 // CSV Import Types
 export interface ParsedCSVRow {
   symbol: string;
@@ -147,6 +243,7 @@ export interface AppState {
   transactions: Transaction[];
   stockQuotes: Record<string, StockQuote>;
   currencyRate: CurrencyRate;
+  exchangeRateHistory: ExchangeRateHistory[];
   settings: AppSettings;
 }
 

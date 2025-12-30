@@ -6,6 +6,12 @@ import {
 } from '../trading-performance';
 import type { Transaction, Holding, StockQuote } from '@/types';
 
+// Helper function to create transaction with default exchangeRate
+const createTransaction = (data: Omit<Transaction, 'exchangeRate'> & { exchangeRate?: number }): Transaction => ({
+  ...data,
+  exchangeRate: data.exchangeRate ?? 34.50,
+});
+
 describe('Trading Performance', () => {
   describe('calculateTradingPerformance', () => {
     it('should return empty stats when no transactions', () => {
@@ -20,7 +26,7 @@ describe('Trading Performance', () => {
 
     it('should calculate winning trade correctly', () => {
       const transactions: Transaction[] = [
-        {
+        createTransaction({
           id: '1',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -33,8 +39,8 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1000,
-        },
-        {
+        }),
+        createTransaction({
           id: '2',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -47,7 +53,7 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1200,
-        },
+        }),
       ];
 
       const result = calculateTradingPerformance(transactions, [], {});
@@ -63,7 +69,7 @@ describe('Trading Performance', () => {
 
     it('should calculate losing trade correctly', () => {
       const transactions: Transaction[] = [
-        {
+        createTransaction({
           id: '1',
           portfolioId: 'p1',
           symbol: 'NVDA',
@@ -76,8 +82,8 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1000,
-        },
-        {
+        }),
+        createTransaction({
           id: '2',
           portfolioId: 'p1',
           symbol: 'NVDA',
@@ -90,7 +96,7 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 750,
-        },
+        }),
       ];
 
       const result = calculateTradingPerformance(transactions, [], {});
@@ -107,7 +113,7 @@ describe('Trading Performance', () => {
     it('should calculate multiple trades with FIFO matching', () => {
       const transactions: Transaction[] = [
         // First buy
-        {
+        createTransaction({
           id: '1',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -120,9 +126,9 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1000,
-        },
+        }),
         // Second buy at higher price
-        {
+        createTransaction({
           id: '2',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -135,9 +141,9 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1200,
-        },
+        }),
         // Sell all at 130 (FIFO: first lot at 100, second at 120)
-        {
+        createTransaction({
           id: '3',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -150,7 +156,7 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 2600,
-        },
+        }),
       ];
 
       const result = calculateTradingPerformance(transactions, [], {});
@@ -165,7 +171,7 @@ describe('Trading Performance', () => {
 
     it('should calculate open positions with unrealized P&L', () => {
       const transactions: Transaction[] = [
-        {
+        createTransaction({
           id: '1',
           portfolioId: 'p1',
           symbol: 'MSFT',
@@ -178,7 +184,7 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 3000,
-        },
+        }),
       ];
 
       const quotes: Record<string, StockQuote> = {
@@ -209,7 +215,7 @@ describe('Trading Performance', () => {
     it('should calculate profit factor correctly', () => {
       const transactions: Transaction[] = [
         // Winning trade: +200
-        {
+        createTransaction({
           id: '1',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -222,8 +228,8 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1000,
-        },
-        {
+        }),
+        createTransaction({
           id: '2',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -236,9 +242,9 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1200,
-        },
+        }),
         // Losing trade: -100
-        {
+        createTransaction({
           id: '3',
           portfolioId: 'p1',
           symbol: 'NVDA',
@@ -251,8 +257,8 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1000,
-        },
-        {
+        }),
+        createTransaction({
           id: '4',
           portfolioId: 'p1',
           symbol: 'NVDA',
@@ -265,7 +271,7 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 900,
-        },
+        }),
       ];
 
       const result = calculateTradingPerformance(transactions, [], {});
@@ -282,7 +288,7 @@ describe('Trading Performance', () => {
 
     it('should calculate holding days correctly', () => {
       const transactions: Transaction[] = [
-        {
+        createTransaction({
           id: '1',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -295,8 +301,8 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1000,
-        },
-        {
+        }),
+        createTransaction({
           id: '2',
           portfolioId: 'p1',
           symbol: 'AAPL',
@@ -309,7 +315,7 @@ describe('Trading Performance', () => {
           commission: 0,
           vat: 0,
           netAmount: 1100,
-        },
+        }),
       ];
 
       const result = calculateTradingPerformance(transactions, [], {});
@@ -321,17 +327,17 @@ describe('Trading Performance', () => {
     it('should calculate consecutive wins and losses', () => {
       const transactions: Transaction[] = [
         // Win 1
-        { id: '1', portfolioId: 'p1', symbol: 'A', companyName: 'A', type: 'BUY', shares: 1, price: 100, date: '2024-01-01', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 },
-        { id: '2', portfolioId: 'p1', symbol: 'A', companyName: 'A', type: 'SELL', shares: 1, price: 110, date: '2024-01-02', grossAmount: 110, commission: 0, vat: 0, netAmount: 110 },
+        createTransaction({ id: '1', portfolioId: 'p1', symbol: 'A', companyName: 'A', type: 'BUY', shares: 1, price: 100, date: '2024-01-01', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 }),
+        createTransaction({ id: '2', portfolioId: 'p1', symbol: 'A', companyName: 'A', type: 'SELL', shares: 1, price: 110, date: '2024-01-02', grossAmount: 110, commission: 0, vat: 0, netAmount: 110 }),
         // Win 2
-        { id: '3', portfolioId: 'p1', symbol: 'B', companyName: 'B', type: 'BUY', shares: 1, price: 100, date: '2024-01-03', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 },
-        { id: '4', portfolioId: 'p1', symbol: 'B', companyName: 'B', type: 'SELL', shares: 1, price: 120, date: '2024-01-04', grossAmount: 120, commission: 0, vat: 0, netAmount: 120 },
+        createTransaction({ id: '3', portfolioId: 'p1', symbol: 'B', companyName: 'B', type: 'BUY', shares: 1, price: 100, date: '2024-01-03', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 }),
+        createTransaction({ id: '4', portfolioId: 'p1', symbol: 'B', companyName: 'B', type: 'SELL', shares: 1, price: 120, date: '2024-01-04', grossAmount: 120, commission: 0, vat: 0, netAmount: 120 }),
         // Win 3
-        { id: '5', portfolioId: 'p1', symbol: 'C', companyName: 'C', type: 'BUY', shares: 1, price: 100, date: '2024-01-05', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 },
-        { id: '6', portfolioId: 'p1', symbol: 'C', companyName: 'C', type: 'SELL', shares: 1, price: 115, date: '2024-01-06', grossAmount: 115, commission: 0, vat: 0, netAmount: 115 },
+        createTransaction({ id: '5', portfolioId: 'p1', symbol: 'C', companyName: 'C', type: 'BUY', shares: 1, price: 100, date: '2024-01-05', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 }),
+        createTransaction({ id: '6', portfolioId: 'p1', symbol: 'C', companyName: 'C', type: 'SELL', shares: 1, price: 115, date: '2024-01-06', grossAmount: 115, commission: 0, vat: 0, netAmount: 115 }),
         // Loss 1
-        { id: '7', portfolioId: 'p1', symbol: 'D', companyName: 'D', type: 'BUY', shares: 1, price: 100, date: '2024-01-07', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 },
-        { id: '8', portfolioId: 'p1', symbol: 'D', companyName: 'D', type: 'SELL', shares: 1, price: 90, date: '2024-01-08', grossAmount: 90, commission: 0, vat: 0, netAmount: 90 },
+        createTransaction({ id: '7', portfolioId: 'p1', symbol: 'D', companyName: 'D', type: 'BUY', shares: 1, price: 100, date: '2024-01-07', grossAmount: 100, commission: 0, vat: 0, netAmount: 100 }),
+        createTransaction({ id: '8', portfolioId: 'p1', symbol: 'D', companyName: 'D', type: 'SELL', shares: 1, price: 90, date: '2024-01-08', grossAmount: 90, commission: 0, vat: 0, netAmount: 90 }),
       ];
 
       const result = calculateTradingPerformance(transactions, [], {});

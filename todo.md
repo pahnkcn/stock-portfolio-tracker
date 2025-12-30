@@ -59,3 +59,16 @@
 - [x] คำนวณ Average Win/Loss per trade
 - [x] แสดง Trade History พร้อม P&L แต่ละรายการ
 - [x] อัพเดท Analytics Screen ให้แสดงข้อมูลจริง
+
+
+## THB/USD Currency P&L Analysis
+
+- [x] ดึง realtime USD/THB exchange rate จาก API
+- [x] บันทึก exchange rate ณ วันที่ซื้อทุก transaction
+- [x] แสดงมูลค่า portfolio ทั้ง USD และ THB
+- [x] คำนวณ Stock P&L (กำไร/ขาดทุนจากราคาหุ้น)
+- [x] คำนวณ Currency P&L (กำไร/ขาดทุนจากค่าเงิน)
+- [x] คำนวณ Total P&L in THB
+- [x] แสดง Per-Holding Currency Analysis
+- [x] แยก Realized vs Unrealized Currency P&L
+- [x] สร้าง Currency Impact Dashboard

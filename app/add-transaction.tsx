@@ -62,6 +62,7 @@ export default function AddTransactionScreen() {
       const netAmount = transactionType === 'BUY' 
         ? grossAmount + commissionNum 
         : grossAmount - commissionNum;
+      const currentRate = state.currencyRate.usdThb;
 
       // Add transaction
       await addTransaction({
@@ -76,6 +77,7 @@ export default function AddTransactionScreen() {
         commission: commissionNum,
         vat: 0,
         netAmount,
+        exchangeRate: currentRate,
         notes: notes.trim() || undefined,
       });
 
@@ -90,9 +92,15 @@ export default function AddTransactionScreen() {
           const newTotalCost = existingHolding.shares * existingHolding.avgCost + sharesNum * priceNum;
           const newAvgCost = newTotalCost / newTotalShares;
           
+          // Calculate weighted average exchange rate
+          const existingCostThb = existingHolding.shares * existingHolding.avgCost * existingHolding.avgExchangeRate;
+          const newCostThb = sharesNum * priceNum * currentRate;
+          const newAvgExchangeRate = (existingCostThb + newCostThb) / (newTotalCost);
+          
           await updateHolding(existingHolding.id, {
             shares: newTotalShares,
             avgCost: newAvgCost,
+            avgExchangeRate: newAvgExchangeRate,
             lots: [
               ...existingHolding.lots,
               {
@@ -101,6 +109,7 @@ export default function AddTransactionScreen() {
                 price: priceNum,
                 date: date,
                 commission: commissionNum,
+                exchangeRate: currentRate,
               },
             ],
           });
@@ -123,6 +132,7 @@ export default function AddTransactionScreen() {
           companyName: companyName.trim() || symbol.toUpperCase().trim(),
           shares: sharesNum,
           avgCost: priceNum,
+          avgExchangeRate: currentRate,
           lots: [
             {
               id: Date.now().toString(),
@@ -130,6 +140,7 @@ export default function AddTransactionScreen() {
               price: priceNum,
               date: date,
               commission: commissionNum,
+              exchangeRate: currentRate,
             },
           ],
         });
@@ -147,223 +158,215 @@ export default function AddTransactionScreen() {
   };
 
   return (
-    <ScreenContainer edges={['left', 'right', 'bottom']}>
+    <ScreenContainer edges={['top', 'left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} className="px-5">
-          {/* Transaction Type */}
-          <View className="py-4">
-            <Text className="text-foreground font-medium mb-2">Transaction Type</Text>
-            <View className="flex-row">
-              <TouchableOpacity
-                onPress={() => setTransactionType('BUY')}
-                style={[
-                  {
-                    backgroundColor: transactionType === 'BUY' ? colors.success : colors.surface,
-                    borderColor: transactionType === 'BUY' ? colors.success : colors.border,
-                  },
-                ]}
-                className="flex-1 py-3 rounded-l-xl border items-center"
-              >
-                <Text
-                  style={{
-                    color: transactionType === 'BUY' ? '#fff' : colors.foreground,
-                  }}
-                  className="font-semibold"
-                >
-                  BUY
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setTransactionType('SELL')}
-                style={[
-                  {
-                    backgroundColor: transactionType === 'SELL' ? colors.error : colors.surface,
-                    borderColor: transactionType === 'SELL' ? colors.error : colors.border,
-                  },
-                ]}
-                className="flex-1 py-3 rounded-r-xl border items-center"
-              >
-                <Text
-                  style={{
-                    color: transactionType === 'SELL' ? '#fff' : colors.foreground,
-                  }}
-                  className="font-semibold"
-                >
-                  SELL
-                </Text>
-              </TouchableOpacity>
-            </View>
+        <ScrollView className="flex-1 p-4">
+          {/* Header */}
+          <View className="flex-row items-center mb-6">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ padding: 8 }}
+            >
+              <Text style={{ color: colors.primary, fontSize: 16 }}>Cancel</Text>
+            </TouchableOpacity>
+            <Text className="flex-1 text-center text-xl font-bold text-foreground">
+              Add Transaction
+            </Text>
+            <View style={{ width: 60 }} />
           </View>
 
-          {/* Portfolio Selection */}
-          <View className="py-2">
-            <Text className="text-foreground font-medium mb-2">Portfolio</Text>
+          {/* Transaction Type Toggle */}
+          <View className="flex-row mb-4 bg-surface rounded-xl p-1">
+            <TouchableOpacity
+              onPress={() => setTransactionType('BUY')}
+              className="flex-1 py-3 rounded-lg"
+              style={{
+                backgroundColor: transactionType === 'BUY' ? colors.success : 'transparent',
+              }}
+            >
+              <Text
+                className="text-center font-semibold"
+                style={{
+                  color: transactionType === 'BUY' ? '#fff' : colors.muted,
+                }}
+              >
+                BUY
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setTransactionType('SELL')}
+              className="flex-1 py-3 rounded-lg"
+              style={{
+                backgroundColor: transactionType === 'SELL' ? colors.error : 'transparent',
+              }}
+            >
+              <Text
+                className="text-center font-semibold"
+                style={{
+                  color: transactionType === 'SELL' ? '#fff' : colors.muted,
+                }}
+              >
+                SELL
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Portfolio Selector */}
+          <View className="mb-4">
+            <Text className="text-sm text-muted mb-2">Portfolio</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {state.portfolios.map((portfolio) => (
-                <TouchableOpacity
-                  key={portfolio.id}
-                  onPress={() => setSelectedPortfolioId(portfolio.id)}
-                  style={[
-                    {
-                      backgroundColor:
-                        selectedPortfolioId === portfolio.id ? colors.tint : colors.surface,
-                      borderColor:
-                        selectedPortfolioId === portfolio.id ? colors.tint : colors.border,
-                    },
-                  ]}
-                  className="px-4 py-2 rounded-full mr-2 border"
-                >
-                  <Text
+              <View className="flex-row gap-2">
+                {state.portfolios.map((portfolio) => (
+                  <TouchableOpacity
+                    key={portfolio.id}
+                    onPress={() => setSelectedPortfolioId(portfolio.id)}
+                    className="px-4 py-2 rounded-lg"
                     style={{
-                      color:
+                      backgroundColor:
                         selectedPortfolioId === portfolio.id
-                          ? colors.background
-                          : colors.foreground,
+                          ? colors.primary
+                          : colors.surface,
                     }}
-                    className="font-medium"
                   >
-                    {portfolio.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={{
+                        color:
+                          selectedPortfolioId === portfolio.id
+                            ? '#fff'
+                            : colors.foreground,
+                      }}
+                    >
+                      {portfolio.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </ScrollView>
           </View>
 
-          {/* Symbol */}
-          <View className="py-2">
-            <Text className="text-foreground font-medium mb-2">Symbol *</Text>
-            <TextInput
-              value={symbol}
-              onChangeText={(text) => setSymbol(text.toUpperCase())}
-              placeholder="e.g., AAPL, NVDA"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="characters"
-              className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border"
-            />
-          </View>
+          {/* Form Fields */}
+          <View className="gap-4">
+            {/* Symbol */}
+            <View>
+              <Text className="text-sm text-muted mb-2">Symbol *</Text>
+              <TextInput
+                value={symbol}
+                onChangeText={setSymbol}
+                placeholder="e.g. AAPL"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="characters"
+                className="bg-surface p-4 rounded-xl text-foreground"
+                style={{ color: colors.foreground }}
+              />
+            </View>
 
-          {/* Company Name */}
-          <View className="py-2">
-            <Text className="text-foreground font-medium mb-2">Company Name</Text>
-            <TextInput
-              value={companyName}
-              onChangeText={setCompanyName}
-              placeholder="e.g., Apple Inc."
-              placeholderTextColor={colors.muted}
-              className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border"
-            />
-          </View>
+            {/* Company Name */}
+            <View>
+              <Text className="text-sm text-muted mb-2">Company Name</Text>
+              <TextInput
+                value={companyName}
+                onChangeText={setCompanyName}
+                placeholder="e.g. Apple Inc."
+                placeholderTextColor={colors.muted}
+                className="bg-surface p-4 rounded-xl text-foreground"
+                style={{ color: colors.foreground }}
+              />
+            </View>
 
-          {/* Shares and Price Row */}
-          <View className="flex-row py-2">
-            <View className="flex-1 mr-2">
-              <Text className="text-foreground font-medium mb-2">Shares *</Text>
+            {/* Shares */}
+            <View>
+              <Text className="text-sm text-muted mb-2">Shares *</Text>
               <TextInput
                 value={shares}
                 onChangeText={setShares}
                 placeholder="0"
                 placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
-                className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border"
+                className="bg-surface p-4 rounded-xl text-foreground"
+                style={{ color: colors.foreground }}
               />
             </View>
-            <View className="flex-1 ml-2">
-              <Text className="text-foreground font-medium mb-2">Price ($) *</Text>
+
+            {/* Price */}
+            <View>
+              <Text className="text-sm text-muted mb-2">Price per Share (USD) *</Text>
               <TextInput
                 value={price}
                 onChangeText={setPrice}
                 placeholder="0.00"
                 placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
-                className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border"
+                className="bg-surface p-4 rounded-xl text-foreground"
+                style={{ color: colors.foreground }}
               />
             </View>
-          </View>
 
-          {/* Date */}
-          <View className="py-2">
-            <Text className="text-foreground font-medium mb-2">Date</Text>
-            <TextInput
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.muted}
-              className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border"
-            />
-          </View>
-
-          {/* Commission */}
-          <View className="py-2">
-            <Text className="text-foreground font-medium mb-2">Commission ($)</Text>
-            <TextInput
-              value={commission}
-              onChangeText={setCommission}
-              placeholder="0.00"
-              placeholderTextColor={colors.muted}
-              keyboardType="decimal-pad"
-              className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border"
-            />
-          </View>
-
-          {/* Notes */}
-          <View className="py-2">
-            <Text className="text-foreground font-medium mb-2">Notes</Text>
-            <TextInput
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Add notes about this trade..."
-              placeholderTextColor={colors.muted}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border min-h-[80px]"
-            />
-          </View>
-
-          {/* Summary */}
-          {shares && price && parseFloat(shares) > 0 && parseFloat(price) > 0 && (
-            <View className="py-4 mt-2 bg-surface rounded-xl p-4 border border-border">
-              <Text className="text-foreground font-semibold mb-2">Summary</Text>
-              <View className="flex-row justify-between mb-1">
-                <Text className="text-muted">Gross Amount</Text>
-                <Text className="text-foreground">
-                  ${(parseFloat(shares) * parseFloat(price)).toFixed(2)}
-                </Text>
-              </View>
-              <View className="flex-row justify-between mb-1">
-                <Text className="text-muted">Commission</Text>
-                <Text className="text-foreground">${parseFloat(commission || '0').toFixed(2)}</Text>
-              </View>
-              <View className="flex-row justify-between pt-2 border-t border-border">
-                <Text className="text-foreground font-semibold">Net Amount</Text>
-                <Text className="text-foreground font-semibold">
-                  $
-                  {(
-                    parseFloat(shares) * parseFloat(price) +
-                    (transactionType === 'BUY' ? 1 : -1) * parseFloat(commission || '0')
-                  ).toFixed(2)}
-                </Text>
-              </View>
+            {/* Date */}
+            <View>
+              <Text className="text-sm text-muted mb-2">Date</Text>
+              <TextInput
+                value={date}
+                onChangeText={setDate}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.muted}
+                className="bg-surface p-4 rounded-xl text-foreground"
+                style={{ color: colors.foreground }}
+              />
             </View>
-          )}
+
+            {/* Commission */}
+            <View>
+              <Text className="text-sm text-muted mb-2">Commission (USD)</Text>
+              <TextInput
+                value={commission}
+                onChangeText={setCommission}
+                placeholder="0.00"
+                placeholderTextColor={colors.muted}
+                keyboardType="decimal-pad"
+                className="bg-surface p-4 rounded-xl text-foreground"
+                style={{ color: colors.foreground }}
+              />
+            </View>
+
+            {/* Notes */}
+            <View>
+              <Text className="text-sm text-muted mb-2">Notes</Text>
+              <TextInput
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Optional notes..."
+                placeholderTextColor={colors.muted}
+                multiline
+                numberOfLines={3}
+                className="bg-surface p-4 rounded-xl text-foreground"
+                style={{ color: colors.foreground, minHeight: 80 }}
+              />
+            </View>
+
+            {/* Current Exchange Rate Info */}
+            <View className="bg-surface p-4 rounded-xl">
+              <Text className="text-sm text-muted">Current Exchange Rate</Text>
+              <Text className="text-lg font-semibold text-foreground">
+                1 USD = ฿{state.currencyRate.usdThb.toFixed(2)}
+              </Text>
+            </View>
+          </View>
 
           {/* Submit Button */}
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={isSubmitting}
-            style={[
-              {
-                backgroundColor: transactionType === 'BUY' ? colors.success : colors.error,
-                opacity: isSubmitting ? 0.6 : 1,
-              },
-            ]}
-            className="py-4 rounded-xl mt-6 items-center"
+            className="mt-6 mb-8 py-4 rounded-xl"
+            style={{
+              backgroundColor: transactionType === 'BUY' ? colors.success : colors.error,
+              opacity: isSubmitting ? 0.6 : 1,
+            }}
           >
-            <Text className="text-white font-semibold text-lg">
-              {isSubmitting ? 'Adding...' : `Add ${transactionType} Order`}
+            <Text className="text-center text-white font-bold text-lg">
+              {isSubmitting ? 'Adding...' : `Add ${transactionType} Transaction`}
             </Text>
           </TouchableOpacity>
         </ScrollView>
