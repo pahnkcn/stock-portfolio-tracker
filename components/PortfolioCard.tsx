@@ -1,7 +1,18 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { useState, useEffect } from 'react';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  withSpring,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import { formatCurrency, formatPercent } from '@/lib/calculations';
 import { useColors } from '@/hooks/use-colors';
+import { AnimatedCurrency, AnimatedPercent } from './ui/AnimatedNumber';
+import { SegmentedProgressBar } from './ui/ProgressBar';
 import type { PortfolioCurrencyAnalysis } from '@/types';
 
 interface PortfolioCardProps {
@@ -30,6 +41,24 @@ export function PortfolioCard({
   const colors = useColors();
   const [showBreakdown, setShowBreakdown] = useState(false);
   
+  // Animation values
+  const cardProgress = useSharedValue(0);
+  const cardScale = useSharedValue(0.95);
+
+  useEffect(() => {
+    cardProgress.value = withDelay(100, withTiming(1, { duration: 400 }));
+    cardScale.value = withDelay(100, withSpring(1, { damping: 15, stiffness: 150 }));
+  }, []);
+
+  const cardAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(cardProgress.value, [0, 1], [0, 1], Extrapolation.CLAMP);
+    const translateY = interpolate(cardProgress.value, [0, 1], [20, 0], Extrapolation.CLAMP);
+    return {
+      opacity,
+      transform: [{ translateY }, { scale: cardScale.value }],
+    };
+  });
+  
   const isProfit = totalPnL >= 0;
   const isDailyPositive = dailyChange >= 0;
 
@@ -46,68 +75,92 @@ export function PortfolioCard({
   const isCurrencyProfit = currencyPnLThb >= 0;
 
   return (
-    <View className="bg-surface rounded-2xl p-5 border border-border">
-      <Text className="text-muted text-sm mb-1">Total Portfolio Value</Text>
+    <Animated.View 
+      style={[
+        styles.card,
+        { 
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          ...Platform.select({
+            ios: {
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 16,
+            },
+            android: {
+              elevation: 8,
+            },
+            web: {
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
+            },
+          }),
+        },
+        cardAnimatedStyle,
+      ]}
+    >
+      {/* Header Label */}
+      <Text style={[styles.label, { color: colors.muted }]}>Total Portfolio Value</Text>
       
-      {/* Dual Currency Display */}
-      <View className="flex-row items-baseline mb-3">
-        <Text className="text-foreground text-3xl font-bold">
-          {formatCurrency(displayValue, currency)}
-        </Text>
+      {/* Main Value with Animation */}
+      <View style={styles.valueContainer}>
+        <AnimatedCurrency
+          value={displayValue}
+          currency={currency === 'THB' ? 'THB' : 'USD'}
+          style={[styles.mainValue, { color: colors.foreground }]}
+          duration={800}
+        />
         {showInTHB && (
-          <Text className="text-muted text-sm ml-2">
+          <Text style={[styles.subValue, { color: colors.muted }]}>
             ({formatCurrency(totalValue, 'USD')})
           </Text>
         )}
       </View>
 
-      <View className="flex-row justify-between mb-4">
-        <View className="flex-1">
-          <Text className="text-muted text-xs mb-1">Total P&L</Text>
-          <View className="flex-row items-center">
-            <Text
-              style={{ color: isProfit ? colors.success : colors.error }}
-              className="text-lg font-semibold"
-            >
-              {formatCurrency(displayPnL, currency)}
-            </Text>
+      {/* P&L Stats Row */}
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statLabel, { color: colors.muted }]}>Total P&L</Text>
+          <View style={styles.statValueRow}>
+            <AnimatedCurrency
+              value={displayPnL}
+              currency={currency === 'THB' ? 'THB' : 'USD'}
+              showSign
+              style={[styles.statValue, { color: isProfit ? colors.success : colors.error }]}
+            />
             <View
               style={[
                 styles.badge,
                 { backgroundColor: isProfit ? colors.success + '20' : colors.error + '20' },
               ]}
             >
-              <Text
-                style={{ color: isProfit ? colors.success : colors.error }}
-                className="text-xs font-medium"
-              >
-                {formatPercent(totalPnLPercent)}
-              </Text>
+              <AnimatedPercent
+                value={totalPnLPercent}
+                style={[styles.badgeText, { color: isProfit ? colors.success : colors.error }]}
+              />
             </View>
           </View>
         </View>
 
-        <View className="flex-1 items-end">
-          <Text className="text-muted text-xs mb-1">Today</Text>
-          <View className="flex-row items-center">
-            <Text
-              style={{ color: isDailyPositive ? colors.success : colors.error }}
-              className="text-lg font-semibold"
-            >
-              {formatCurrency(displayDailyChange, currency)}
-            </Text>
+        <View style={[styles.statItem, styles.statItemRight]}>
+          <Text style={[styles.statLabel, { color: colors.muted }]}>Today</Text>
+          <View style={styles.statValueRow}>
+            <AnimatedCurrency
+              value={displayDailyChange}
+              currency={currency === 'THB' ? 'THB' : 'USD'}
+              showSign
+              style={[styles.statValue, { color: isDailyPositive ? colors.success : colors.error }]}
+            />
             <View
               style={[
                 styles.badge,
                 { backgroundColor: isDailyPositive ? colors.success + '20' : colors.error + '20' },
               ]}
             >
-              <Text
-                style={{ color: isDailyPositive ? colors.success : colors.error }}
-                className="text-xs font-medium"
-              >
-                {formatPercent(dailyChangePercent)}
-              </Text>
+              <AnimatedPercent
+                value={dailyChangePercent}
+                style={[styles.badgeText, { color: isDailyPositive ? colors.success : colors.error }]}
+              />
             </View>
           </View>
         </View>
@@ -117,112 +170,234 @@ export function PortfolioCard({
       {hasBreakdown && (
         <TouchableOpacity
           onPress={() => setShowBreakdown(!showBreakdown)}
-          className="py-2 border-t border-border"
+          style={[styles.breakdownToggle, { borderTopColor: colors.border }]}
         >
-          <View className="flex-row justify-between items-center">
-            <Text className="text-primary text-sm font-medium">
-              {showBreakdown ? 'Hide P&L Breakdown' : 'Show P&L Breakdown'}
-            </Text>
-            <Text className="text-muted text-sm">{showBreakdown ? '▲' : '▼'}</Text>
-          </View>
+          <Text style={[styles.toggleText, { color: colors.primary }]}>
+            {showBreakdown ? 'Hide P&L Breakdown' : 'Show P&L Breakdown'}
+          </Text>
+          <Text style={[styles.toggleIcon, { color: colors.muted }]}>
+            {showBreakdown ? '▲' : '▼'}
+          </Text>
         </TouchableOpacity>
       )}
 
       {/* Currency P&L Breakdown Details */}
       {hasBreakdown && showBreakdown && currencyAnalysis && (
-        <View className="pt-3 border-t border-border">
+        <View style={[styles.breakdownSection, { borderTopColor: colors.border }]}>
           {/* Stock P&L */}
-          <View className="flex-row justify-between items-center mb-2">
-            <View className="flex-row items-center">
-              <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: colors.primary }} />
-              <Text className="text-muted text-sm">Stock P&L</Text>
+          <View style={styles.breakdownRow}>
+            <View style={styles.breakdownLabel}>
+              <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.breakdownLabelText, { color: colors.muted }]}>Stock P&L</Text>
             </View>
-            <View className="items-end">
+            <View style={styles.breakdownValue}>
               <Text
-                style={{ color: isStockProfit ? colors.success : colors.error }}
-                className="text-sm font-semibold"
+                style={[
+                  styles.breakdownValueText,
+                  { color: isStockProfit ? colors.success : colors.error },
+                ]}
               >
                 ฿{Math.abs(stockPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
                 {stockPnLThb >= 0 ? '' : ' (Loss)'}
               </Text>
-              <Text className="text-muted text-xs">
+              <Text style={[styles.breakdownPercent, { color: colors.muted }]}>
                 {formatPercent(currencyAnalysis.totalStockPnLPercent)}
               </Text>
             </View>
           </View>
 
           {/* Currency P&L */}
-          <View className="flex-row justify-between items-center mb-2">
-            <View className="flex-row items-center">
-              <View className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: colors.warning }} />
-              <Text className="text-muted text-sm">Currency P&L</Text>
+          <View style={styles.breakdownRow}>
+            <View style={styles.breakdownLabel}>
+              <View style={[styles.legendDot, { backgroundColor: colors.warning }]} />
+              <Text style={[styles.breakdownLabelText, { color: colors.muted }]}>Currency P&L</Text>
             </View>
-            <View className="items-end">
+            <View style={styles.breakdownValue}>
               <Text
-                style={{ color: isCurrencyProfit ? colors.success : colors.error }}
-                className="text-sm font-semibold"
+                style={[
+                  styles.breakdownValueText,
+                  { color: isCurrencyProfit ? colors.success : colors.error },
+                ]}
               >
                 {isCurrencyProfit ? '+' : '-'}฿{Math.abs(currencyPnLThb).toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </Text>
-              <Text className="text-muted text-xs">
+              <Text style={[styles.breakdownPercent, { color: colors.muted }]}>
                 {formatPercent(currencyAnalysis.totalCurrencyPnLPercent)}
               </Text>
             </View>
           </View>
 
-          {/* Contribution Bar */}
-          <View className="mt-2">
-            <View className="flex-row h-2 rounded-full overflow-hidden bg-border">
-              {(() => {
-                const totalAbs = Math.abs(stockPnLThb) + Math.abs(currencyPnLThb);
-                const stockPercent = totalAbs > 0 ? (Math.abs(stockPnLThb) / totalAbs) * 100 : 50;
-                return (
-                  <>
-                    <View 
-                      style={{ 
-                        width: `${stockPercent}%`, 
-                        backgroundColor: colors.primary 
-                      }} 
-                    />
-                    <View 
-                      style={{ 
-                        width: `${100 - stockPercent}%`, 
-                        backgroundColor: colors.warning 
-                      }} 
-                    />
-                  </>
-                );
-              })()}
-            </View>
-            <View className="flex-row justify-between mt-1">
-              <Text className="text-muted text-xs">Stock</Text>
-              <Text className="text-muted text-xs">Currency</Text>
+          {/* Animated Progress Bar */}
+          <View style={styles.progressBarContainer}>
+            <SegmentedProgressBar
+              segments={[
+                { value: Math.abs(stockPnLThb), color: colors.primary },
+                { value: Math.abs(currencyPnLThb), color: colors.warning },
+              ]}
+              height={10}
+            />
+            <View style={styles.progressLabels}>
+              <Text style={[styles.progressLabel, { color: colors.muted }]}>Stock</Text>
+              <Text style={[styles.progressLabel, { color: colors.muted }]}>Currency</Text>
             </View>
           </View>
         </View>
       )}
 
-      <View className="flex-row justify-between pt-3 border-t border-border">
-        <View>
-          <Text className="text-muted text-xs">Cost Basis</Text>
-          <Text className="text-foreground text-sm font-medium">
+      {/* Footer */}
+      <View style={[styles.footer, { borderTopColor: colors.border }]}>
+        <View style={styles.footerItem}>
+          <Text style={[styles.footerLabel, { color: colors.muted }]}>Cost Basis</Text>
+          <Text style={[styles.footerValue, { color: colors.foreground }]}>
             {formatCurrency(showInTHB ? totalCost * usdThbRate : totalCost, currency)}
           </Text>
         </View>
-        <View className="items-end">
-          <Text className="text-muted text-xs">USD/THB Rate</Text>
-          <Text className="text-foreground text-sm font-medium">฿{usdThbRate.toFixed(2)}</Text>
+        <View style={[styles.footerItem, styles.footerItemRight]}>
+          <Text style={[styles.footerLabel, { color: colors.muted }]}>USD/THB Rate</Text>
+          <Text style={[styles.footerValue, { color: colors.foreground }]}>฿{usdThbRate.toFixed(2)}</Text>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  card: {
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    marginHorizontal: 20,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  valueContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 16,
+  },
+  mainValue: {
+    fontSize: 34,
+    fontWeight: '700',
+    letterSpacing: -1,
+  },
+  subValue: {
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  statItem: {
+    flex: 1,
+  },
+  statItemRight: {
+    alignItems: 'flex-end',
+  },
+  statLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
   badge: {
-    marginLeft: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  breakdownToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  toggleIcon: {
+    fontSize: 12,
+  },
+  breakdownSection: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  breakdownLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  breakdownLabelText: {
+    fontSize: 14,
+  },
+  breakdownValue: {
+    alignItems: 'flex-end',
+  },
+  breakdownValueText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  breakdownPercent: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  progressBarContainer: {
+    marginTop: 8,
+  },
+  progressLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  progressLabel: {
+    fontSize: 11,
+  },
+  footer: {
+    flexDirection: 'row',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    marginTop: 4,
+  },
+  footerItem: {
+    flex: 1,
+  },
+  footerItemRight: {
+    alignItems: 'flex-end',
+  },
+  footerLabel: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  footerValue: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
