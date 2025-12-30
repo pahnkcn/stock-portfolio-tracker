@@ -304,7 +304,7 @@ export default function EditTransactionScreen() {
 
   const handleGoBack = () => {
     setShowSuccessModal(false);
-    router.back();
+    router.replace('/(tabs)');
   };
 
   const handleGoToJournal = () => {

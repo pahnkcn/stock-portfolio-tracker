@@ -374,7 +374,7 @@ export default function AddTransactionScreen() {
 
   const handleGoBack = () => {
     setShowSuccessModal(false);
-    router.back();
+    router.replace('/(tabs)');
   };
 
   return (
