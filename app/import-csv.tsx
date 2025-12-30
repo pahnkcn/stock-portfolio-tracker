@@ -6,8 +6,9 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -23,11 +24,13 @@ export default function ImportCSVScreen() {
   const colors = useColors();
   const router = useRouter();
   const { state, importTransactions, addHolding, updateHolding } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [csvContent, setCsvContent] = useState('');
   const [parsedData, setParsedData] = useState<ParsedCSVRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isParsed, setIsParsed] = useState(false);
+  const [fileName, setFileName] = useState('');
   const [selectedPortfolioId, setSelectedPortfolioId] = useState(
     state.portfolios[0]?.id || ''
   );
@@ -65,7 +68,52 @@ export default function ImportCSVScreen() {
     }));
   }, [parsedData]);
 
+  // Handle file selection on Web
+  const handleWebFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsLoading(true);
+    setFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        setCsvContent(content);
+        processCSVContent(content);
+      }
+    };
+    reader.onerror = () => {
+      Alert.alert('Error', 'Failed to read file');
+      setIsLoading(false);
+    };
+    reader.readAsText(file);
+  };
+
+  // Process CSV content
+  const processCSVContent = (content: string) => {
+    const validation = validateCSV(content);
+    if (!validation.valid) {
+      Alert.alert('Invalid CSV', validation.error || 'Could not parse CSV file');
+      setIsLoading(false);
+      return;
+    }
+
+    const parsed = parseCSV(content);
+    setParsedData(parsed);
+    setIsParsed(true);
+    setIsLoading(false);
+  };
+
   const handlePickFile = async () => {
+    // For Web, use native file input
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    // For Native (iOS/Android)
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['text/csv', 'text/comma-separated-values', 'application/csv', '*/*'],
@@ -83,26 +131,15 @@ export default function ImportCSVScreen() {
       }
 
       setIsLoading(true);
+      setFileName(file.name || 'file.csv');
 
       // Read file content
       const content = await FileSystem.readAsStringAsync(file.uri);
       setCsvContent(content);
-
-      // Validate and parse
-      const validation = validateCSV(content);
-      if (!validation.valid) {
-        Alert.alert('Invalid CSV', validation.error || 'Could not parse CSV file');
-        setIsLoading(false);
-        return;
-      }
-
-      const parsed = parseCSV(content);
-      setParsedData(parsed);
-      setIsParsed(true);
-      setIsLoading(false);
+      processCSVContent(content);
     } catch (error) {
       console.error('Error picking file:', error);
-      Alert.alert('Error', 'Failed to read CSV file');
+      Alert.alert('Error', 'Failed to read CSV file. Please try pasting the content instead.');
       setIsLoading(false);
     }
   };
@@ -114,18 +151,7 @@ export default function ImportCSVScreen() {
     }
 
     setIsLoading(true);
-
-    const validation = validateCSV(csvContent);
-    if (!validation.valid) {
-      Alert.alert('Invalid CSV', validation.error || 'Could not parse CSV content');
-      setIsLoading(false);
-      return;
-    }
-
-    const parsed = parseCSV(csvContent);
-    setParsedData(parsed);
-    setIsParsed(true);
-    setIsLoading(false);
+    processCSVContent(csvContent);
   };
 
   const handleImport = async () => {
@@ -218,16 +244,40 @@ export default function ImportCSVScreen() {
     setCsvContent('');
     setParsedData([]);
     setIsParsed(false);
+    setFileName('');
   };
 
   return (
     <ScreenContainer edges={['left', 'right', 'bottom']}>
+      {/* Hidden file input for Web */}
+      {Platform.OS === 'web' && (
+        <input
+          ref={fileInputRef as any}
+          type="file"
+          accept=".csv,text/csv,application/csv"
+          onChange={handleWebFileSelect as any}
+          style={{ display: 'none' }}
+        />
+      )}
+
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} className="px-5">
+        {/* Header */}
+        <View className="flex-row items-center py-4">
+          <TouchableOpacity onPress={() => router.back()} className="mr-4">
+            <Text style={{ color: colors.tint, fontSize: 16 }}>← Back</Text>
+          </TouchableOpacity>
+          <Text className="text-foreground text-xl font-bold flex-1">Import CSV</Text>
+          {isParsed && (
+            <TouchableOpacity onPress={handleReset}>
+              <Text style={{ color: colors.error }}>Reset</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {!isParsed ? (
           <>
             {/* Instructions */}
-            <View className="py-4">
-              <Text className="text-foreground text-lg font-semibold mb-2">Import CSV</Text>
+            <View className="py-2 mb-4">
               <Text className="text-muted text-sm">
                 Import your trading history from a CSV file. Supported format: Monthly Statement
                 from your broker.
@@ -238,11 +288,30 @@ export default function ImportCSVScreen() {
             <TouchableOpacity
               onPress={handlePickFile}
               disabled={isLoading}
-              className="bg-surface rounded-xl p-6 border-2 border-dashed border-border items-center mb-4"
+              style={{
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderWidth: 2,
+                borderStyle: 'dashed',
+                borderRadius: 16,
+                padding: 24,
+                alignItems: 'center',
+                marginBottom: 16,
+              }}
             >
-              <IconSymbol name="doc.text.fill" size={40} color={colors.tint} />
-              <Text className="text-foreground font-medium mt-3">Pick CSV File</Text>
-              <Text className="text-muted text-sm mt-1">Tap to select a file</Text>
+              {isLoading ? (
+                <ActivityIndicator color={colors.tint} size="large" />
+              ) : (
+                <>
+                  <IconSymbol name="doc.text.fill" size={40} color={colors.tint} />
+                  <Text style={{ color: colors.foreground, fontWeight: '600', marginTop: 12 }}>
+                    {fileName || 'Pick CSV File'}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+                    Tap to select a file from your device
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
 
             {/* Or Paste */}
@@ -262,207 +331,228 @@ export default function ImportCSVScreen() {
                 multiline
                 numberOfLines={10}
                 textAlignVertical="top"
-                className="bg-surface rounded-xl px-4 py-3 text-foreground border border-border min-h-[200px] font-mono text-xs"
+                style={{
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  color: colors.foreground,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  minHeight: 200,
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                  fontSize: 11,
+                }}
               />
             </View>
 
             <TouchableOpacity
               onPress={handlePasteCSV}
               disabled={isLoading || !csvContent.trim()}
-              style={[
-                {
-                  backgroundColor: csvContent.trim() ? colors.tint : colors.muted,
-                  opacity: isLoading ? 0.6 : 1,
-                },
-              ]}
-              className="py-4 rounded-xl items-center"
+              style={{
+                backgroundColor: csvContent.trim() ? colors.tint : colors.muted,
+                opacity: isLoading ? 0.6 : 1,
+                paddingVertical: 16,
+                borderRadius: 16,
+                alignItems: 'center',
+              }}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-background font-semibold">Parse CSV</Text>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Parse CSV</Text>
               )}
             </TouchableOpacity>
 
             {/* Expected Format */}
-            <View className="mt-6 bg-surface rounded-xl p-4 border border-border">
-              <Text className="text-foreground font-medium mb-2">Expected CSV Format</Text>
-              <Text className="text-muted text-xs font-mono">
+            <View
+              style={{
+                marginTop: 24,
+                backgroundColor: colors.surface,
+                borderRadius: 16,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.foreground, fontWeight: '600', marginBottom: 8 }}>
+                Expected CSV Format
+              </Text>
+              <Text
+                style={{
+                  color: colors.muted,
+                  fontSize: 10,
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                }}
+              >
                 Symbol & Name,Trade Date,Settlement Date,Buy/Sell,Quantity,Traded Price,Gross
                 Amount,Comm/Fee/Tax,VAT,Net Amount
               </Text>
-              <Text className="text-muted text-xs font-mono mt-2">
+              <Text
+                style={{
+                  color: colors.muted,
+                  fontSize: 10,
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                  marginTop: 8,
+                }}
+              >
                 NVDA NVIDIA CORPORATION,25/11/2025,26/11/2025,BUY,0.5,172.12,86.06,-0.09,-0.01,86.16
               </Text>
             </View>
           </>
         ) : (
           <>
-            {/* Preview Header */}
-            <View className="py-4 flex-row justify-between items-center">
-              <View>
-                <Text className="text-foreground text-lg font-semibold">Preview Import</Text>
-                <Text className="text-muted text-sm">Review before importing</Text>
-              </View>
-              <TouchableOpacity onPress={handleReset}>
-                <Text className="text-primary">Reset</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Portfolio Selection */}
-            <View className="py-2 mb-4">
-              <Text className="text-foreground font-medium mb-2">Import to Portfolio</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {state.portfolios.map((portfolio) => (
-                  <TouchableOpacity
-                    key={portfolio.id}
-                    onPress={() => setSelectedPortfolioId(portfolio.id)}
-                    style={[
-                      {
-                        backgroundColor:
-                          selectedPortfolioId === portfolio.id ? colors.tint : colors.surface,
-                        borderColor:
-                          selectedPortfolioId === portfolio.id ? colors.tint : colors.border,
-                      },
-                    ]}
-                    className="px-4 py-2 rounded-full mr-2 border"
-                  >
-                    <Text
-                      style={{
-                        color:
-                          selectedPortfolioId === portfolio.id
-                            ? colors.background
-                            : colors.foreground,
-                      }}
-                      className="font-medium"
-                    >
-                      {portfolio.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
             {/* Summary */}
             {summary && (
-              <View className="bg-surface rounded-xl p-4 border border-border mb-4">
-                <Text className="text-foreground font-semibold mb-3">Summary</Text>
-                <View className="flex-row flex-wrap">
-                  <View className="w-1/2 mb-2">
-                    <Text className="text-muted text-xs">Total Transactions</Text>
-                    <Text className="text-foreground text-lg font-semibold">
+              <View
+                style={{
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  padding: 16,
+                  marginBottom: 16,
+                }}
+              >
+                <Text style={{ color: colors.foreground, fontWeight: '700', fontSize: 18, marginBottom: 12 }}>
+                  Import Summary
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  <View style={{ flex: 1, minWidth: 100 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Total Transactions</Text>
+                    <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: '700' }}>
                       {summary.totalTransactions}
                     </Text>
                   </View>
-                  <View className="w-1/2 mb-2">
-                    <Text className="text-muted text-xs">Unique Stocks</Text>
-                    <Text className="text-foreground text-lg font-semibold">
+                  <View style={{ flex: 1, minWidth: 100 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Unique Symbols</Text>
+                    <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: '700' }}>
                       {summary.uniqueSymbols}
                     </Text>
                   </View>
-                  <View className="w-1/2">
-                    <Text className="text-muted text-xs">Buy Orders</Text>
-                    <Text className="text-success text-lg font-semibold">{summary.buyCount}</Text>
+                  <View style={{ flex: 1, minWidth: 100 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Buy Orders</Text>
+                    <Text style={{ color: colors.success, fontSize: 20, fontWeight: '700' }}>
+                      {summary.buyCount}
+                    </Text>
                   </View>
-                  <View className="w-1/2">
-                    <Text className="text-muted text-xs">Sell Orders</Text>
-                    <Text className="text-error text-lg font-semibold">{summary.sellCount}</Text>
+                  <View style={{ flex: 1, minWidth: 100 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Sell Orders</Text>
+                    <Text style={{ color: colors.error, fontSize: 20, fontWeight: '700' }}>
+                      {summary.sellCount}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: colors.muted }}>Total Buy Amount</Text>
+                    <Text style={{ color: colors.success, fontWeight: '600' }}>
+                      ${summary.totalBuyAmount.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.muted }}>Total Sell Amount</Text>
+                    <Text style={{ color: colors.error, fontWeight: '600' }}>
+                      ${summary.totalSellAmount.toFixed(2)}
+                    </Text>
                   </View>
                 </View>
               </View>
             )}
+
+            {/* Portfolio Selector */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ color: colors.foreground, fontWeight: '600', marginBottom: 8 }}>
+                Import to Portfolio
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {state.portfolios.map((portfolio) => (
+                    <TouchableOpacity
+                      key={portfolio.id}
+                      onPress={() => setSelectedPortfolioId(portfolio.id)}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 10,
+                        backgroundColor:
+                          selectedPortfolioId === portfolio.id ? colors.tint : colors.surface,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: selectedPortfolioId === portfolio.id ? '#fff' : colors.foreground,
+                          fontWeight: '500',
+                        }}
+                      >
+                        {portfolio.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
 
             {/* Resulting Holdings */}
             {resultingHoldings.length > 0 && (
-              <View className="mb-4">
-                <Text className="text-foreground font-semibold mb-3">Resulting Holdings</Text>
-                <View className="bg-surface rounded-xl border border-border overflow-hidden">
-                  {resultingHoldings.map((holding, index) => (
-                    <View
-                      key={holding.symbol}
-                      className={`flex-row justify-between p-4 ${index > 0 ? 'border-t border-border' : ''}`}
-                    >
-                      <View>
-                        <Text className="text-foreground font-semibold">{holding.symbol}</Text>
-                        <Text className="text-muted text-xs" numberOfLines={1}>
-                          {holding.companyName}
-                        </Text>
-                      </View>
-                      <View className="items-end">
-                        <Text className="text-foreground font-medium">
-                          {holding.shares.toFixed(5)} shares
-                        </Text>
-                        <Text className="text-muted text-xs">
-                          Avg: ${holding.avgCost.toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Recent Transactions Preview */}
-            <View className="mb-4">
-              <Text className="text-foreground font-semibold mb-3">
-                Transactions ({parsedData.length})
-              </Text>
-              <View className="bg-surface rounded-xl border border-border overflow-hidden">
-                {parsedData.slice(0, 5).map((tx, index) => (
+              <View
+                style={{
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  padding: 16,
+                  marginBottom: 16,
+                }}
+              >
+                <Text style={{ color: colors.foreground, fontWeight: '600', marginBottom: 12 }}>
+                  Resulting Holdings ({resultingHoldings.length})
+                </Text>
+                {resultingHoldings.map((holding, index) => (
                   <View
-                    key={index}
-                    className={`flex-row justify-between p-3 ${index > 0 ? 'border-t border-border' : ''}`}
+                    key={holding.symbol}
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingVertical: 8,
+                      borderTopWidth: index > 0 ? 1 : 0,
+                      borderTopColor: colors.border,
+                    }}
                   >
-                    <View className="flex-row items-center">
-                      <View
-                        style={[
-                          {
-                            backgroundColor:
-                              tx.type === 'BUY' ? colors.success + '20' : colors.error + '20',
-                          },
-                        ]}
-                        className="px-2 py-1 rounded mr-2"
-                      >
-                        <Text
-                          style={{ color: tx.type === 'BUY' ? colors.success : colors.error }}
-                          className="text-xs font-bold"
-                        >
-                          {tx.type}
-                        </Text>
-                      </View>
-                      <Text className="text-foreground font-medium">{tx.symbol}</Text>
+                    <View>
+                      <Text style={{ color: colors.foreground, fontWeight: '600' }}>
+                        {holding.symbol}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
+                        {holding.companyName}
+                      </Text>
                     </View>
-                    <Text className="text-foreground">
-                      {tx.quantity} @ ${tx.tradedPrice.toFixed(2)}
-                    </Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ color: colors.foreground, fontWeight: '600' }}>
+                        {holding.shares.toFixed(4)} shares
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        Avg: ${holding.avgCost.toFixed(2)}
+                      </Text>
+                    </View>
                   </View>
                 ))}
-                {parsedData.length > 5 && (
-                  <View className="p-3 border-t border-border">
-                    <Text className="text-muted text-center text-sm">
-                      ... and {parsedData.length - 5} more transactions
-                    </Text>
-                  </View>
-                )}
               </View>
-            </View>
+            )}
 
             {/* Import Button */}
             <TouchableOpacity
               onPress={handleImport}
               disabled={isLoading}
-              style={[
-                {
-                  backgroundColor: colors.tint,
-                  opacity: isLoading ? 0.6 : 1,
-                },
-              ]}
-              className="py-4 rounded-xl items-center"
+              style={{
+                backgroundColor: colors.success,
+                opacity: isLoading ? 0.6 : 1,
+                paddingVertical: 16,
+                borderRadius: 16,
+                alignItems: 'center',
+              }}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-background font-semibold text-lg">
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
                   Import {parsedData.length} Transactions
                 </Text>
               )}

@@ -4,17 +4,20 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Modal,
 } from 'react-native';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
 import { ScreenContainer } from '@/components/screen-container';
 import { SymbolAutocomplete } from '@/components/SymbolAutocomplete';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/use-colors';
+import { getApiBaseUrl } from '@/constants/oauth';
 import type { TransactionType } from '@/types';
 
 export default function AddTransactionScreen() {
@@ -27,35 +30,104 @@ export default function AddTransactionScreen() {
   const [companyName, setCompanyName] = useState('');
   const [shares, setShares] = useState('');
   const [price, setPrice] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [commission, setCommission] = useState('0');
   const [notes, setNotes] = useState('');
+  const [exchangeRate, setExchangeRate] = useState(state.currencyRate.usdThb.toString());
   const [selectedPortfolioId, setSelectedPortfolioId] = useState(
     state.portfolios[0]?.id || ''
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingPrice, setIsFetchingPrice] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // Check if API key is configured
+  const hasApiKey = !!(
+    state.settings.apiKeys.yahooFinance ||
+    state.settings.apiKeys.alphaVantage ||
+    state.settings.apiKeys.finnhub ||
+    state.settings.apiKeys.twelveData ||
+    state.settings.apiKeys.polygonIo
+  );
+
+  // Auto-fetch price when symbol is selected and API key is available
+  const fetchCurrentPrice = useCallback(async (stockSymbol: string) => {
+    if (!hasApiKey || !stockSymbol) return;
+    
+    setIsFetchingPrice(true);
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/trpc/stock.getQuote?input=${encodeURIComponent(JSON.stringify({ symbol: stockSymbol }))}`);
+      const data = await response.json();
+      const quote = data?.result?.data;
+      if (quote && quote.price) {
+        setPrice(quote.price.toFixed(2));
+        if (Platform.OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching price:', error);
+    } finally {
+      setIsFetchingPrice(false);
+    }
+  }, [hasApiKey]);
 
   const handleSelectSymbol = useCallback((selectedSymbol: string, selectedCompanyName: string) => {
     setSymbol(selectedSymbol);
     setCompanyName(selectedCompanyName);
-  }, []);
+    // Auto-fetch price when symbol is selected
+    fetchCurrentPrice(selectedSymbol);
+  }, [fetchCurrentPrice]);
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+
+  const formatDate = (d: Date) => {
+    return d.toISOString().split('T')[0];
+  };
+
+  const resetForm = () => {
+    setSymbol('');
+    setCompanyName('');
+    setShares('');
+    setPrice('');
+    setDate(new Date());
+    setCommission('0');
+    setNotes('');
+    setExchangeRate(state.currencyRate.usdThb.toString());
+  };
 
   const handleSubmit = async () => {
     // Validation
     if (!symbol.trim()) {
-      Alert.alert('Error', 'Please enter a stock symbol');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       return;
     }
     if (!shares || parseFloat(shares) <= 0) {
-      Alert.alert('Error', 'Please enter a valid number of shares');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       return;
     }
     if (!price || parseFloat(price) <= 0) {
-      Alert.alert('Error', 'Please enter a valid price');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       return;
     }
     if (!selectedPortfolioId) {
-      Alert.alert('Error', 'Please select a portfolio');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       return;
     }
 
@@ -69,7 +141,7 @@ export default function AddTransactionScreen() {
       const netAmount = transactionType === 'BUY' 
         ? grossAmount + commissionNum 
         : grossAmount - commissionNum;
-      const currentRate = state.currencyRate.usdThb;
+      const currentRate = parseFloat(exchangeRate) || state.currencyRate.usdThb;
 
       // Add transaction
       await addTransaction({
@@ -79,7 +151,7 @@ export default function AddTransactionScreen() {
         type: transactionType,
         shares: sharesNum,
         price: priceNum,
-        date: date,
+        date: formatDate(date),
         grossAmount,
         commission: commissionNum,
         vat: 0,
@@ -114,7 +186,7 @@ export default function AddTransactionScreen() {
                 id: Date.now().toString(),
                 shares: sharesNum,
                 price: priceNum,
-                date: date,
+                date: formatDate(date),
                 commission: commissionNum,
                 exchangeRate: currentRate,
               },
@@ -124,8 +196,6 @@ export default function AddTransactionScreen() {
           // SELL - reduce shares
           const newShares = existingHolding.shares - sharesNum;
           if (newShares <= 0) {
-            // Remove holding if all shares sold
-            // For simplicity, we'll just set shares to 0
             await updateHolding(existingHolding.id, { shares: 0 });
           } else {
             await updateHolding(existingHolding.id, { shares: newShares });
@@ -145,7 +215,7 @@ export default function AddTransactionScreen() {
               id: Date.now().toString(),
               shares: sharesNum,
               price: priceNum,
-              date: date,
+              date: formatDate(date),
               commission: commissionNum,
               exchangeRate: currentRate,
             },
@@ -153,15 +223,30 @@ export default function AddTransactionScreen() {
         });
       }
 
-      Alert.alert('Success', 'Transaction added successfully', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      
+      // Show success modal
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error adding transaction:', error);
-      Alert.alert('Error', 'Failed to add transaction');
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleAddAnother = () => {
+    setShowSuccessModal(false);
+    resetForm();
+  };
+
+  const handleGoBack = () => {
+    setShowSuccessModal(false);
+    router.back();
   };
 
   return (
@@ -317,11 +402,21 @@ export default function AddTransactionScreen() {
 
             {/* Price */}
             <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Price per Share (USD) *</Text>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Price per Share (USD) *</Text>
+                {isFetchingPrice && (
+                  <Text style={[styles.fetchingText, { color: colors.primary }]}>Fetching...</Text>
+                )}
+                {hasApiKey && !isFetchingPrice && symbol && (
+                  <TouchableOpacity onPress={() => fetchCurrentPrice(symbol)}>
+                    <Text style={[styles.refreshPriceText, { color: colors.primary }]}>↻ Refresh</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <TextInput
                 value={price}
                 onChangeText={setPrice}
-                placeholder="0.00"
+                placeholder={hasApiKey ? "Auto-filled from API" : "0.00"}
                 placeholderTextColor={colors.muted}
                 keyboardType="decimal-pad"
                 style={[
@@ -329,21 +424,68 @@ export default function AddTransactionScreen() {
                   { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
                 ]}
               />
+              {!hasApiKey && (
+                <Text style={[styles.hintText, { color: colors.muted }]}>
+                  Add API key in Settings for auto-fill
+                </Text>
+              )}
             </View>
 
-            {/* Date */}
+            {/* Date with Date Picker */}
             <View style={styles.fieldContainer}>
               <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Date</Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                style={[
+                  styles.input,
+                  styles.dateInput,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Text style={{ color: colors.foreground, fontSize: 16 }}>
+                  {formatDate(date)}
+                </Text>
+                <Text style={{ color: colors.muted }}>📅</Text>
+              </TouchableOpacity>
+              
+              {showDatePicker && (
+                <View>
+                  <DateTimePicker
+                    value={date}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={handleDateChange}
+                    maximumDate={new Date()}
+                  />
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity
+                      onPress={() => setShowDatePicker(false)}
+                      style={[styles.datePickerDone, { backgroundColor: colors.primary }]}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Done</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Exchange Rate (Editable) */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.label, { color: colors.foreground, opacity: 0.7 }]}>Exchange Rate (USD/THB)</Text>
               <TextInput
-                value={date}
-                onChangeText={setDate}
-                placeholder="YYYY-MM-DD"
+                value={exchangeRate}
+                onChangeText={setExchangeRate}
+                placeholder="35.00"
                 placeholderTextColor={colors.muted}
+                keyboardType="decimal-pad"
                 style={[
                   styles.input,
                   { backgroundColor: colors.surface, color: colors.foreground, borderColor: colors.border },
                 ]}
               />
+              <Text style={[styles.hintText, { color: colors.muted }]}>
+                1 USD = ฿{parseFloat(exchangeRate) || 0} THB
+              </Text>
             </View>
 
             {/* Commission */}
@@ -380,13 +522,24 @@ export default function AddTransactionScreen() {
               />
             </View>
 
-            {/* Current Exchange Rate Info */}
-            <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.infoLabel, { color: colors.foreground, opacity: 0.7 }]}>Current Exchange Rate</Text>
-              <Text style={[styles.infoValue, { color: colors.foreground }]}>
-                1 USD = ฿{state.currencyRate.usdThb.toFixed(2)}
-              </Text>
-            </View>
+            {/* Transaction Summary */}
+            {shares && price && (
+              <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.summaryTitle, { color: colors.foreground }]}>Transaction Summary</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: colors.muted }]}>Gross Amount (USD)</Text>
+                  <Text style={[styles.summaryValue, { color: colors.foreground }]}>
+                    ${(parseFloat(shares) * parseFloat(price)).toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: colors.muted }]}>Gross Amount (THB)</Text>
+                  <Text style={[styles.summaryValue, { color: colors.foreground }]}>
+                    ฿{(parseFloat(shares) * parseFloat(price) * (parseFloat(exchangeRate) || 0)).toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Submit Button */}
@@ -407,6 +560,43 @@ export default function AddTransactionScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleGoBack}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <Text style={styles.successIcon}>✅</Text>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              Transaction Added!
+            </Text>
+            <Text style={[styles.modalMessage, { color: colors.muted }]}>
+              {transactionType} {shares} shares of {symbol.toUpperCase()} at ${price}
+            </Text>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={handleAddAnother}
+                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.modalButtonText}>Add Another</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleGoBack}
+                style={[styles.modalButton, styles.modalButtonSecondary, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.modalButtonTextSecondary, { color: colors.foreground }]}>
+                  Back to Dashboard
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -463,6 +653,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '500',
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fetchingText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  refreshPriceText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  hintText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
   portfolioRow: {
     flexDirection: 'row',
     gap: 8,
@@ -481,21 +689,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
   },
+  dateInput: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  datePickerDone: {
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
   textArea: {
     minHeight: 80,
     textAlignVertical: 'top',
   },
-  infoCard: {
+  summaryCard: {
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
+    marginTop: 8,
   },
-  infoLabel: {
-    fontSize: 13,
-    marginBottom: 4,
+  summaryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 12,
   },
-  infoValue: {
-    fontSize: 18,
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 14,
+  },
+  summaryValue: {
+    fontSize: 14,
     fontWeight: '600',
   },
   submitButton: {
@@ -508,5 +738,55 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 17,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  successIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalButtons: {
+    width: '100%',
+    gap: 12,
+  },
+  modalButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  modalButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  modalButtonTextSecondary: {
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

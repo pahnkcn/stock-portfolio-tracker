@@ -145,3 +145,15 @@
 - [x] แก้ไขจาก auto-refresh เป็น manual refresh
 - [x] เพิ่มปุ่ม Refresh ให้ผู้ใช้กดเอง
 - [x] ลบ interval auto-refresh ออก
+
+
+## Add Transaction Improvements
+
+- [x] Auto-fill price per share จาก API เมื่อมี API Key
+- [x] เปลี่ยน Date input เป็น Date Picker
+- [x] ทำให้ Exchange Rate แก้ไขได้
+- [x] เพิ่ม Success Popup หลัง Add สำเร็จ (เลือก Add ต่อ หรือกลับหน้าหลัก)
+
+## Import CSV Bug Fix
+
+- [x] แก้ไข Import CSV ให้ทำงานได้เมื่อแนบไฟล์
