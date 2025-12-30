@@ -166,3 +166,15 @@
 - [x] เพิ่ม UI สำหรับ Backup/Restore ในหน้า Settings
 - [x] รองรับ file download บน Web
 - [x] รองรับ file picker สำหรับ Restore
+
+
+## Edit/Delete Transaction Feature
+
+- [x] เพิ่ม deleteTransaction function ใน AppContext
+- [x] เพิ่ม updateTransaction function ใน AppContext
+- [x] สร้างหน้า Edit Transaction Screen
+- [x] เพิ่มปุ่ม Edit ใน Transaction Card
+- [ ] เพิ่ม Swipe-to-delete gesture (optional enhancement)
+- [x] เพิ่ม Confirmation dialog ก่อนลบ
+- [x] อัพเดท Holdings เมื่อแก้ไข/ลบ transaction
+- [x] Unit tests สำหรับ edit/delete functionality (23 tests passed)

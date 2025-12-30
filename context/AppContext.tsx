@@ -30,6 +30,8 @@ type AppAction =
   | { type: 'SET_TRANSACTIONS'; payload: Transaction[] }
   | { type: 'ADD_TRANSACTION'; payload: Transaction }
   | { type: 'ADD_TRANSACTIONS'; payload: Transaction[] }
+  | { type: 'UPDATE_TRANSACTION'; payload: { id: string; updates: Partial<Transaction> } }
+  | { type: 'DELETE_TRANSACTION'; payload: string }
   | { type: 'SET_STOCK_QUOTES'; payload: Record<string, StockQuote> }
   | { type: 'UPDATE_STOCK_QUOTE'; payload: StockQuote }
   | { type: 'SET_CURRENCY_RATE'; payload: CurrencyRate }
@@ -104,6 +106,17 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'ADD_TRANSACTIONS':
       return { ...state, transactions: [...state.transactions, ...action.payload] };
     
+    case 'UPDATE_TRANSACTION':
+      return {
+        ...state,
+        transactions: state.transactions.map(t =>
+          t.id === action.payload.id ? { ...t, ...action.payload.updates } : t
+        ),
+      };
+    
+    case 'DELETE_TRANSACTION':
+      return { ...state, transactions: state.transactions.filter(t => t.id !== action.payload) };
+    
     case 'SET_STOCK_QUOTES':
       return { ...state, stockQuotes: action.payload };
     
@@ -138,6 +151,8 @@ interface AppContextType {
   deleteHolding: (id: string) => Promise<void>;
   // Transaction actions
   addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction>;
+  updateTransaction: (id: string, updates: Partial<Transaction>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
   importTransactions: (transactions: Omit<Transaction, 'id'>[]) => Promise<void>;
   // Settings actions
   updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
@@ -256,6 +271,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return transaction;
   }, []);
 
+  const updateTransaction = useCallback(async (id: string, updates: Partial<Transaction>) => {
+    const transactions = await storage.getTransactions();
+    const updatedTransactions = transactions.map(t =>
+      t.id === id ? { ...t, ...updates } : t
+    );
+    await storage.saveTransactions(updatedTransactions);
+    dispatch({ type: 'UPDATE_TRANSACTION', payload: { id, updates } });
+  }, []);
+
+  const deleteTransaction = useCallback(async (id: string) => {
+    const transactions = await storage.getTransactions();
+    const filteredTransactions = transactions.filter(t => t.id !== id);
+    await storage.saveTransactions(filteredTransactions);
+    dispatch({ type: 'DELETE_TRANSACTION', payload: id });
+  }, []);
+
   const importTransactions = useCallback(async (txsData: Omit<Transaction, 'id'>[]) => {
     const transactions: Transaction[] = txsData.map(tx => ({
       ...tx,
@@ -330,6 +361,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateHolding,
     deleteHolding,
     addTransaction,
+    updateTransaction,
+    deleteTransaction,
     importTransactions,
     updateSettings,
     updateCurrencyRate,
