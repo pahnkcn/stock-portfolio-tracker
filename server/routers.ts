@@ -2,9 +2,16 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import {
+  getStockQuote,
+  getStockChart,
+  getMultipleStockQuotes,
+  stockQuoteInputSchema,
+  stockChartInputSchema,
+  multipleQuotesInputSchema,
+} from "./stockApi";
 
 export const appRouter = router({
-  // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
@@ -17,12 +24,32 @@ export const appRouter = router({
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  // Stock API routes
+  stock: router({
+    // Get single stock quote
+    getQuote: publicProcedure
+      .input(stockQuoteInputSchema)
+      .query(async ({ input }) => {
+        const quote = await getStockQuote(input.symbol);
+        return quote;
+      }),
+
+    // Get stock chart data
+    getChart: publicProcedure
+      .input(stockChartInputSchema)
+      .query(async ({ input }) => {
+        const chart = await getStockChart(input.symbol, input.interval, input.range);
+        return chart;
+      }),
+
+    // Get multiple stock quotes
+    getMultipleQuotes: publicProcedure
+      .input(multipleQuotesInputSchema)
+      .query(async ({ input }) => {
+        const quotes = await getMultipleStockQuotes(input.symbols);
+        return quotes;
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,10 +1,11 @@
 import { ScrollView, Text, View, RefreshControl, ActivityIndicator } from 'react-native';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { ScreenContainer } from '@/components/screen-container';
 import { PortfolioCard } from '@/components/PortfolioCard';
 import { HoldingCard } from '@/components/HoldingCard';
 import { QuickActions } from '@/components/QuickActions';
 import { useApp } from '@/context/AppContext';
+import { useStockQuotes } from '@/hooks/useStockQuotes';
 import { calculatePortfolioValue, calculateDailyChange, getTopMovers } from '@/lib/calculations';
 import { useColors } from '@/hooks/use-colors';
 
@@ -13,23 +14,36 @@ export default function DashboardScreen() {
   const { state, refreshData } = useApp();
   const [refreshing, setRefreshing] = useState(false);
 
+  // Use real-time stock quotes with auto-refresh every 60 seconds
+  const { quotes, isLoading: quotesLoading, isFetching, refresh: refreshQuotes, lastUpdated } = useStockQuotes({
+    refreshInterval: 60000,
+    autoRefresh: true,
+  });
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshData();
+    await Promise.all([refreshData(), refreshQuotes()]);
     setRefreshing(false);
-  }, [refreshData]);
+  }, [refreshData, refreshQuotes]);
 
   const portfolioStats = useMemo(() => {
-    return calculatePortfolioValue(state.holdings, state.stockQuotes);
-  }, [state.holdings, state.stockQuotes]);
+    return calculatePortfolioValue(state.holdings, quotes);
+  }, [state.holdings, quotes]);
 
   const dailyStats = useMemo(() => {
-    return calculateDailyChange(state.holdings, state.stockQuotes);
-  }, [state.holdings, state.stockQuotes]);
+    return calculateDailyChange(state.holdings, quotes);
+  }, [state.holdings, quotes]);
 
   const topMovers = useMemo(() => {
-    return getTopMovers(state.holdings, state.stockQuotes, 3);
-  }, [state.holdings, state.stockQuotes]);
+    return getTopMovers(state.holdings, quotes, 3);
+  }, [state.holdings, quotes]);
+
+  // Format last updated time
+  const lastUpdatedText = useMemo(() => {
+    if (!lastUpdated) return null;
+    const date = new Date(lastUpdated);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  }, [lastUpdated]);
 
   if (state.isLoading) {
     return (
@@ -50,8 +64,27 @@ export default function DashboardScreen() {
       >
         {/* Header */}
         <View className="px-5 pt-4 pb-2">
-          <Text className="text-foreground text-2xl font-bold">Dashboard</Text>
-          <Text className="text-muted text-sm">Stock Portfolio Tracker</Text>
+          <View className="flex-row justify-between items-start">
+            <View>
+              <Text className="text-foreground text-2xl font-bold">Dashboard</Text>
+              <Text className="text-muted text-sm">Stock Portfolio Tracker</Text>
+            </View>
+            {/* Real-time indicator */}
+            <View className="items-end">
+              {isFetching && (
+                <View className="flex-row items-center">
+                  <ActivityIndicator size="small" color={colors.tint} />
+                  <Text className="text-muted text-xs ml-1">Updating...</Text>
+                </View>
+              )}
+              {lastUpdatedText && !isFetching && (
+                <View className="flex-row items-center">
+                  <View className="w-2 h-2 rounded-full bg-success mr-1" />
+                  <Text className="text-muted text-xs">Live • {lastUpdatedText}</Text>
+                </View>
+              )}
+            </View>
+          </View>
         </View>
 
         {/* Portfolio Summary Card */}
@@ -77,7 +110,12 @@ export default function DashboardScreen() {
         <View className="px-5 py-3">
           <View className="flex-row justify-between items-center mb-3">
             <Text className="text-foreground text-lg font-semibold">Holdings</Text>
-            <Text className="text-muted text-sm">{state.holdings.length} stocks</Text>
+            <View className="flex-row items-center">
+              {quotesLoading && state.holdings.length > 0 && (
+                <ActivityIndicator size="small" color={colors.muted} style={{ marginRight: 8 }} />
+              )}
+              <Text className="text-muted text-sm">{state.holdings.length} stocks</Text>
+            </View>
           </View>
 
           {state.holdings.length === 0 ? (
@@ -92,7 +130,7 @@ export default function DashboardScreen() {
               <HoldingCard
                 key={holding.id}
                 holding={holding}
-                quote={state.stockQuotes[holding.symbol]}
+                quote={quotes[holding.symbol]}
                 showInTHB={state.settings.showInTHB}
                 usdThbRate={state.currencyRate.usdThb}
               />
@@ -118,7 +156,7 @@ export default function DashboardScreen() {
                   <HoldingCard
                     key={holding.id}
                     holding={holding}
-                    quote={state.stockQuotes[holding.symbol]}
+                    quote={quotes[holding.symbol]}
                     showInTHB={state.settings.showInTHB}
                     usdThbRate={state.currencyRate.usdThb}
                   />
@@ -133,7 +171,7 @@ export default function DashboardScreen() {
                   <HoldingCard
                     key={holding.id}
                     holding={holding}
-                    quote={state.stockQuotes[holding.symbol]}
+                    quote={quotes[holding.symbol]}
                     showInTHB={state.settings.showInTHB}
                     usdThbRate={state.currencyRate.usdThb}
                   />

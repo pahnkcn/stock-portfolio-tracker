@@ -40,3 +40,12 @@
 - [x] Filter transactions
 - [x] Dark mode support
 - [x] App Logo and Branding
+
+
+## Stock API Integration
+
+- [x] เชื่อมต่อ Stock API สำหรับดึงราคาหุ้น real-time
+- [x] สร้าง Stock API Service
+- [x] อัพเดท Dashboard ให้แสดงราคา real-time
+- [x] อัพเดท Stock Detail ให้แสดงราคา real-time
+- [x] เพิ่ม auto-refresh ราคาหุ้น
