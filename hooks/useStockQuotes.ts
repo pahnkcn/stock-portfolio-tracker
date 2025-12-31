@@ -119,18 +119,27 @@ async function fetchStockQuote(
 
 /**
  * Fetch stock chart data directly from Yahoo Finance API
+ *
+ * @param period - Time period: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max'
+ * For technical indicators, we need at least:
+ * - RSI (14): 15+ data points
+ * - MACD (26+9): 35+ data points
+ * - EMA 200: 200+ data points
+ * Recommended: '1y' (252 trading days) for comprehensive analysis
  */
 async function fetchStockChart(
   symbol: string,
-  yahooApiKey?: string
+  yahooApiKey?: string,
+  period: string = '1y' // Default to 1 year for technical analysis
 ): Promise<StockChartData | null> {
   if (!yahooApiKey) {
     return null;
   }
 
   try {
+    // Use period parameter to get more historical data
     const response = await fetch(
-      `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/history?symbol=${symbol.toUpperCase()}&interval=1d&diffandsplits=false`,
+      `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/history?symbol=${symbol.toUpperCase()}&interval=1d&diffandsplits=false&period=${period}`,
       {
         method: 'GET',
         headers: {
@@ -315,11 +324,16 @@ export function useStockQuote(symbol: string) {
 
 /**
  * Hook to fetch stock chart data - calls API directly from client
+ *
+ * For technical indicators to work properly, use:
+ * - range: '1y' for full analysis (RSI, MACD, EMA200, Bollinger, etc.)
+ * - range: '3mo' for basic analysis (RSI, MACD, EMA20/50)
+ * - range: '1mo' may not have enough data for MACD
  */
 export function useStockChart(
   symbol: string,
   interval: '1m' | '5m' | '15m' | '30m' | '1h' | '1d' | '1wk' | '1mo' = '1d',
-  range: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max' = '1mo'
+  range: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max' = '1y' // Changed default to 1y
 ) {
   const { state } = useApp();
   const [chart, setChart] = useState<StockChartData | null>(null);
@@ -338,7 +352,8 @@ export function useStockChart(
     setError(null);
 
     try {
-      const result = await fetchStockChart(symbol, yahooApiKey);
+      // Pass the range/period parameter to fetch enough data for technical analysis
+      const result = await fetchStockChart(symbol, yahooApiKey, range);
       setChart(result);
       return result;
     } catch (err) {
@@ -347,7 +362,7 @@ export function useStockChart(
     } finally {
       setIsLoading(false);
     }
-  }, [symbol, yahooApiKey, hasApiKey]);
+  }, [symbol, yahooApiKey, hasApiKey, range]);
 
   return {
     chart,

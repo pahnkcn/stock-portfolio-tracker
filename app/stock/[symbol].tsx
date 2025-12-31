@@ -16,8 +16,9 @@ export default function StockDetailScreen() {
   // Fetch real-time quote
   const { quote, isLoading: quoteLoading, refresh: refreshQuote, hasApiKey } = useStockQuote(symbol || '');
 
-  // Fetch chart data
-  const { chart, isLoading: chartLoading, refresh: refreshChart } = useStockChart(symbol || '', '1d', '1mo');
+  // Fetch chart data - use '1y' for enough data for technical indicators
+  // RSI needs 15+, MACD needs 35+, EMA200 needs 200+ data points
+  const { chart, isLoading: chartLoading, refresh: refreshChart } = useStockChart(symbol || '', '1d', '1y');
 
   // Auto-fetch data when screen opens (if API key is configured)
   useEffect(() => {
