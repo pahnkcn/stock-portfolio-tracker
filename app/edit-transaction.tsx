@@ -204,6 +204,7 @@ export default function EditTransactionScreen() {
       shares: parseFloat(shares) || 0,
       price: parseFloat(price) || 0,
       exchangeRate: parseFloat(exchangeRate) || 35,
+      date: date.toISOString(),
     };
 
     // Combine other transactions with the edited one
@@ -215,25 +216,57 @@ export default function EditTransactionScreen() {
     );
 
     if (holding) {
-      // Recalculate shares and average cost
-      let totalShares = 0;
-      let totalCost = 0;
-      let totalCostThb = 0;
+      // Sort transactions by date for FIFO calculation
+      const sortedTxs = [...allTransactions].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
 
-      allTransactions.forEach(t => {
-        if (t.type === 'BUY') {
-          totalShares += t.shares;
-          totalCost += t.shares * t.price;
-          // Weighted average exchange rate: use cost basis (shares * price * rate)
-          totalCostThb += t.shares * t.price * (t.exchangeRate || 35);
-        } else {
-          totalShares -= t.shares;
+      // Separate BUY and SELL transactions
+      const buys = sortedTxs.filter(t => t.type === 'BUY');
+      const sells = sortedTxs.filter(t => t.type === 'SELL');
+
+      // Create buy lots with remaining shares (for FIFO matching)
+      const buyLots = buys.map(tx => ({
+        shares: tx.shares,
+        price: tx.price,
+        exchangeRate: tx.exchangeRate || 35,
+        remainingShares: tx.shares,
+      }));
+
+      // Apply FIFO: match sells against buys
+      let buyLotIndex = 0;
+      for (const sell of sells) {
+        let sellSharesRemaining = sell.shares;
+
+        while (sellSharesRemaining > 0 && buyLotIndex < buyLots.length) {
+          const buyLot = buyLots[buyLotIndex];
+
+          if (buyLot.remainingShares <= 0) {
+            buyLotIndex++;
+            continue;
+          }
+
+          const matchedShares = Math.min(sellSharesRemaining, buyLot.remainingShares);
+          buyLot.remainingShares -= matchedShares;
+          sellSharesRemaining -= matchedShares;
+
+          if (buyLot.remainingShares <= 0) {
+            buyLotIndex++;
+          }
         }
-      });
+      }
+
+      // Calculate from remaining buy lots only
+      const remainingLots = buyLots.filter(lot => lot.remainingShares > 0);
+      const totalShares = remainingLots.reduce((sum, lot) => sum + lot.remainingShares, 0);
+      const totalCost = remainingLots.reduce((sum, lot) => sum + lot.remainingShares * lot.price, 0);
+      const totalCostThb = remainingLots.reduce(
+        (sum, lot) => sum + lot.remainingShares * lot.price * lot.exchangeRate,
+        0
+      );
 
       if (totalShares <= 0) {
-        // No shares left, could delete holding
-        // For now, just set to 0
+        // No shares left
         await updateHolding(holding.id, {
           shares: 0,
           avgCost: 0,
@@ -243,7 +276,6 @@ export default function EditTransactionScreen() {
         await updateHolding(holding.id, {
           shares: totalShares,
           avgCost: totalCost / totalShares,
-          // Exchange rate weighted by cost basis, not shares
           avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
         });
       }
@@ -262,20 +294,54 @@ export default function EditTransactionScreen() {
     );
 
     if (holding) {
-      // Recalculate shares and average cost from remaining transactions only
-      let totalShares = 0;
-      let totalCost = 0;
-      let totalCostThb = 0;
+      // Sort transactions by date for FIFO calculation
+      const sortedTxs = [...remainingTransactions].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
 
-      remainingTransactions.forEach(t => {
-        if (t.type === 'BUY') {
-          totalShares += t.shares;
-          totalCost += t.shares * t.price;
-          totalCostThb += t.shares * t.price * (t.exchangeRate || 35);
-        } else {
-          totalShares -= t.shares;
+      // Separate BUY and SELL transactions
+      const buys = sortedTxs.filter(t => t.type === 'BUY');
+      const sells = sortedTxs.filter(t => t.type === 'SELL');
+
+      // Create buy lots with remaining shares (for FIFO matching)
+      const buyLots = buys.map(tx => ({
+        shares: tx.shares,
+        price: tx.price,
+        exchangeRate: tx.exchangeRate || 35,
+        remainingShares: tx.shares,
+      }));
+
+      // Apply FIFO: match sells against buys
+      let buyLotIndex = 0;
+      for (const sell of sells) {
+        let sellSharesRemaining = sell.shares;
+
+        while (sellSharesRemaining > 0 && buyLotIndex < buyLots.length) {
+          const buyLot = buyLots[buyLotIndex];
+
+          if (buyLot.remainingShares <= 0) {
+            buyLotIndex++;
+            continue;
+          }
+
+          const matchedShares = Math.min(sellSharesRemaining, buyLot.remainingShares);
+          buyLot.remainingShares -= matchedShares;
+          sellSharesRemaining -= matchedShares;
+
+          if (buyLot.remainingShares <= 0) {
+            buyLotIndex++;
+          }
         }
-      });
+      }
+
+      // Calculate from remaining buy lots only
+      const remainingLots = buyLots.filter(lot => lot.remainingShares > 0);
+      const totalShares = remainingLots.reduce((sum, lot) => sum + lot.remainingShares, 0);
+      const totalCost = remainingLots.reduce((sum, lot) => sum + lot.remainingShares * lot.price, 0);
+      const totalCostThb = remainingLots.reduce(
+        (sum, lot) => sum + lot.remainingShares * lot.price * lot.exchangeRate,
+        0
+      );
 
       if (totalShares <= 0) {
         // No shares left

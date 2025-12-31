@@ -38,7 +38,7 @@ const deleteTransaction = (transactions: Transaction[], id: string): Transaction
   return transactions.filter(t => t.id !== id);
 };
 
-// Helper to recalculate holdings from transactions
+// Helper to recalculate holdings from transactions using FIFO method
 const recalculateHolding = (
   transactions: Transaction[],
   symbol: string,
@@ -48,19 +48,54 @@ const recalculateHolding = (
     t => t.symbol === symbol && t.portfolioId === portfolioId
   );
 
-  let totalShares = 0;
-  let totalCost = 0;
-  let totalExchangeRateCost = 0;
+  // Sort transactions by date for FIFO calculation
+  const sortedTxs = [...symbolTxs].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
-  symbolTxs.forEach(t => {
-    if (t.type === 'BUY') {
-      totalShares += t.shares;
-      totalCost += t.shares * t.price;
-      totalExchangeRateCost += t.shares * (t.exchangeRate || 35);
-    } else {
-      totalShares -= t.shares;
+  // Separate BUY and SELL transactions
+  const buys = sortedTxs.filter(t => t.type === 'BUY');
+  const sells = sortedTxs.filter(t => t.type === 'SELL');
+
+  // Create buy lots with remaining shares (for FIFO matching)
+  const buyLots = buys.map(tx => ({
+    shares: tx.shares,
+    price: tx.price,
+    exchangeRate: tx.exchangeRate || 35,
+    remainingShares: tx.shares,
+  }));
+
+  // Apply FIFO: match sells against buys
+  let buyLotIndex = 0;
+  for (const sell of sells) {
+    let sellSharesRemaining = sell.shares;
+
+    while (sellSharesRemaining > 0 && buyLotIndex < buyLots.length) {
+      const buyLot = buyLots[buyLotIndex];
+
+      if (buyLot.remainingShares <= 0) {
+        buyLotIndex++;
+        continue;
+      }
+
+      const matchedShares = Math.min(sellSharesRemaining, buyLot.remainingShares);
+      buyLot.remainingShares -= matchedShares;
+      sellSharesRemaining -= matchedShares;
+
+      if (buyLot.remainingShares <= 0) {
+        buyLotIndex++;
+      }
     }
-  });
+  }
+
+  // Calculate from remaining buy lots only
+  const remainingLots = buyLots.filter(lot => lot.remainingShares > 0);
+  const totalShares = remainingLots.reduce((sum, lot) => sum + lot.remainingShares, 0);
+  const totalCost = remainingLots.reduce((sum, lot) => sum + lot.remainingShares * lot.price, 0);
+  const totalCostThb = remainingLots.reduce(
+    (sum, lot) => sum + lot.remainingShares * lot.price * lot.exchangeRate,
+    0
+  );
 
   if (totalShares <= 0) {
     return { shares: 0, avgCost: 0, avgExchangeRate: 35 };
@@ -69,7 +104,7 @@ const recalculateHolding = (
   return {
     shares: totalShares,
     avgCost: totalCost / totalShares,
-    avgExchangeRate: totalExchangeRateCost / totalShares,
+    avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
   };
 };
 
@@ -178,20 +213,24 @@ describe('Transaction Edit/Delete Operations', () => {
       // Edit tx-1 price from 150 to 200
       const updated = updateTransaction(transactions, 'tx-1', { price: 200 });
       const holding = recalculateHolding(updated, 'AAPL', 'portfolio-1');
-      // Total cost: (10 * 200) + (5 * 160) = 2000 + 800 = 2800
-      // Total buy shares: 10 + 5 = 15, but remaining shares = 15 - 3 = 12
-      // Avg cost is based on buy shares: 2800 / 12 = 233.33
-      expect(holding.avgCost).toBeCloseTo(233.33, 1);
+      // FIFO: SELL 3 shares comes from tx-1 (oldest BUY at $200)
+      // Remaining: tx-1: 10-3=7 shares @ $200, tx-2: 5 shares @ $160
+      // Total cost: (7 * 200) + (5 * 160) = 1400 + 800 = 2200
+      // Total shares: 7 + 5 = 12
+      // Avg cost: 2200 / 12 = 183.33
+      expect(holding.avgCost).toBeCloseTo(183.33, 1);
     });
 
     it('should recalculate avgExchangeRate after editing', () => {
       // Edit tx-1 exchange rate from 35 to 40
       const updated = updateTransaction(transactions, 'tx-1', { exchangeRate: 40 });
       const holding = recalculateHolding(updated, 'AAPL', 'portfolio-1');
-      // Total rate cost: (10 * 40) + (5 * 36) = 400 + 180 = 580
-      // Remaining shares: 12
-      // Avg rate: 580 / 12 = 48.33
-      expect(holding.avgExchangeRate).toBeCloseTo(48.33, 1);
+      // FIFO: SELL 3 shares comes from tx-1 (oldest BUY)
+      // Remaining: tx-1: 7 shares @ $150, rate 40; tx-2: 5 shares @ $160, rate 36
+      // Total cost: (7 * 150) + (5 * 160) = 1050 + 800 = 1850
+      // Total cost THB: (7 * 150 * 40) + (5 * 160 * 36) = 42000 + 28800 = 70800
+      // Avg rate: 70800 / 1850 = 38.27
+      expect(holding.avgExchangeRate).toBeCloseTo(38.27, 1);
     });
   });
 
@@ -213,10 +252,10 @@ describe('Transaction Edit/Delete Operations', () => {
       const result = deleteTransaction(transactions, 'tx-1');
       const holding = recalculateHolding(result, 'AAPL', 'portfolio-1');
       // tx-2 buy: 5 shares at $160, tx-4 sell: 3 shares
-      // Remaining: 5 - 3 = 2 shares
-      // Total cost: 5 * 160 = 800
-      // Avg cost: 800 / 2 = 400
-      expect(holding.avgCost).toBe(400);
+      // FIFO: SELL 3 shares comes from tx-2 (now the oldest BUY)
+      // Remaining: tx-2: 5-3=2 shares @ $160
+      // Avg cost: 160 (only one lot left)
+      expect(holding.avgCost).toBe(160);
     });
 
     it('should return zero shares when all buys deleted', () => {
@@ -272,8 +311,10 @@ describe('Transaction Edit/Delete Operations', () => {
     it('should handle zero price transaction', () => {
       const updated = updateTransaction(transactions, 'tx-1', { price: 0 });
       const holding = recalculateHolding(updated, 'AAPL', 'portfolio-1');
-      // Total cost: (10 * 0) + (5 * 160) = 800
-      // Remaining shares: 12
+      // FIFO: SELL 3 shares comes from tx-1 (oldest BUY at $0)
+      // Remaining: tx-1: 7 shares @ $0, tx-2: 5 shares @ $160
+      // Total cost: (7 * 0) + (5 * 160) = 800
+      // Total shares: 12
       // Avg cost: 800 / 12 = 66.67
       expect(holding.avgCost).toBeCloseTo(66.67, 1);
     });
