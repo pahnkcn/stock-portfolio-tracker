@@ -55,20 +55,35 @@ export function parseCSV(csvContent: string): ParsedCSVRow[] {
       if (!symbolAndName || !tradeDate || !buySell || !quantity) {
         continue;
       }
-      
+
+      // Validate transaction type
+      if (!isValidTransactionType(buySell)) {
+        console.warn(`Skipping row with invalid transaction type: ${buySell}`);
+        continue;
+      }
+
+      // Parse and validate dates
+      const parsedTradeDate = parseDate(tradeDate);
+      const parsedSettlementDate = parseDate(settlementDate);
+
+      if (!parsedTradeDate) {
+        console.warn(`Skipping row with invalid trade date: ${tradeDate}`);
+        continue;
+      }
+
       // Parse symbol and company name
       const { symbol, companyName } = parseSymbolAndName(symbolAndName);
-      
+
       // Skip if symbol couldn't be parsed
       if (!symbol) {
         continue;
       }
-      
+
       const row: ParsedCSVRow = {
         symbol,
         companyName,
-        tradeDate: parseDate(tradeDate),
-        settlementDate: parseDate(settlementDate),
+        tradeDate: parsedTradeDate,
+        settlementDate: parsedSettlementDate || parsedTradeDate,
         type: buySell.toUpperCase() as TransactionType,
         quantity: parseFloat(quantity) || 0,
         tradedPrice: parseFloat(tradedPrice) || 0,
@@ -77,7 +92,7 @@ export function parseCSV(csvContent: string): ParsedCSVRow[] {
         vat: Math.abs(parseFloat(vat) || 0),
         netAmount: parseFloat(netAmount) || 0,
       };
-      
+
       results.push(row);
     }
   }
@@ -86,18 +101,27 @@ export function parseCSV(csvContent: string): ParsedCSVRow[] {
 }
 
 /**
- * Parse a single CSV line handling quoted fields
+ * Parse a single CSV line handling quoted fields and escaped quotes
+ * Handles escaped quotes ("") within quoted fields
  */
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
-  
+
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
-    
+    const nextChar = line[i + 1];
+
     if (char === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote ("") - add single quote and skip next char
+        current += '"';
+        i++;
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
     } else if (char === ',' && !inQuotes) {
       result.push(current.trim());
       current = '';
@@ -105,7 +129,7 @@ function parseCSVLine(line: string): string[] {
       current += char;
     }
   }
-  
+
   result.push(current.trim());
   return result;
 }
@@ -128,15 +152,44 @@ function parseSymbolAndName(combined: string): { symbol: string; companyName: st
 
 /**
  * Parse date from DD/MM/YYYY format to ISO string
+ * Returns null if date is invalid
  */
-function parseDate(dateStr: string): string {
-  if (!dateStr) return '';
-  
+function parseDate(dateStr: string): string | null {
+  if (!dateStr) return null;
+
   const parts = dateStr.split('/');
-  if (parts.length !== 3) return dateStr;
-  
-  const [day, month, year] = parts;
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  if (parts.length !== 3) return null;
+
+  const [dayStr, monthStr, yearStr] = parts;
+  const day = parseInt(dayStr, 10);
+  const month = parseInt(monthStr, 10);
+  const year = parseInt(yearStr, 10);
+
+  // Validate date components
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  if (year < 1900 || year > 2100) return null;
+
+  // Create date and verify it's valid
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${year}-${monthStr.padStart(2, '0')}-${dayStr.padStart(2, '0')}`;
+}
+
+/**
+ * Validate transaction type
+ */
+function isValidTransactionType(type: string): type is 'BUY' | 'SELL' {
+  const normalized = type.toUpperCase().trim();
+  return normalized === 'BUY' || normalized === 'SELL';
 }
 
 /**
@@ -186,16 +239,80 @@ export function validateCSV(csvContent: string): { valid: boolean; error?: strin
   if (!csvContent || csvContent.trim().length === 0) {
     return { valid: false, error: 'CSV content is empty' };
   }
-  
+
   const hasHeader = csvContent.includes('Symbol & Name') || csvContent.includes('Symbol,');
   if (!hasHeader) {
     return { valid: false, error: 'CSV header not found. Expected "Symbol & Name" column.' };
   }
-  
+
   const parsed = parseCSV(csvContent);
   if (parsed.length === 0) {
     return { valid: false, error: 'No valid transactions found in CSV' };
   }
-  
+
   return { valid: true };
+}
+
+/**
+ * Generate a unique key for a transaction to detect duplicates
+ * Key format: symbol|date|type|quantity|price
+ */
+export function generateTransactionKey(tx: {
+  symbol: string;
+  tradeDate: string;
+  type: string;
+  quantity: number;
+  tradedPrice: number;
+}): string {
+  return `${tx.symbol}|${tx.tradeDate}|${tx.type}|${tx.quantity}|${tx.tradedPrice}`;
+}
+
+/**
+ * Filter out duplicate transactions
+ * Returns { unique: transactions to import, duplicates: skipped transactions }
+ */
+export function filterDuplicateTransactions(
+  newTransactions: ParsedCSVRow[],
+  existingTransactions: Array<{
+    symbol: string;
+    date: string;
+    type: string;
+    shares: number;
+    price: number;
+  }>
+): { unique: ParsedCSVRow[]; duplicates: ParsedCSVRow[] } {
+  // Create set of existing transaction keys
+  const existingKeys = new Set(
+    existingTransactions.map((tx) =>
+      generateTransactionKey({
+        symbol: tx.symbol,
+        tradeDate: tx.date,
+        type: tx.type,
+        quantity: tx.shares,
+        tradedPrice: tx.price,
+      })
+    )
+  );
+
+  const unique: ParsedCSVRow[] = [];
+  const duplicates: ParsedCSVRow[] = [];
+
+  for (const tx of newTransactions) {
+    const key = generateTransactionKey({
+      symbol: tx.symbol,
+      tradeDate: tx.tradeDate,
+      type: tx.type,
+      quantity: tx.quantity,
+      tradedPrice: tx.tradedPrice,
+    });
+
+    if (existingKeys.has(key)) {
+      duplicates.push(tx);
+    } else {
+      unique.push(tx);
+      existingKeys.add(key); // Prevent duplicates within the same import
+    }
+  }
+
+  return { unique, duplicates };
 }

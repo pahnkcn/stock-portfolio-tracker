@@ -16,7 +16,12 @@ import { ScreenContainer } from '@/components/screen-container';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/use-colors';
-import { parseCSV, calculateHoldingsFromTransactions, validateCSV } from '@/lib/csv-parser';
+import {
+  parseCSV,
+  calculateHoldingsFromTransactions,
+  validateCSV,
+  filterDuplicateTransactions,
+} from '@/lib/csv-parser';
 import type { ParsedCSVRow, Transaction, Holding } from '@/types';
 import { generateId } from '@/lib/storage';
 
@@ -168,9 +173,53 @@ export default function ImportCSVScreen() {
     setIsLoading(true);
 
     try {
+      // Filter out duplicates
+      const existingTransactions = state.transactions
+        .filter((tx) => tx.portfolioId === selectedPortfolioId)
+        .map((tx) => ({
+          symbol: tx.symbol,
+          date: tx.date,
+          type: tx.type,
+          shares: tx.shares,
+          price: tx.price,
+        }));
+
+      const { unique: uniqueTransactions, duplicates } = filterDuplicateTransactions(
+        parsedData,
+        existingTransactions
+      );
+
+      if (uniqueTransactions.length === 0) {
+        Alert.alert(
+          'No New Transactions',
+          `All ${duplicates.length} transactions already exist in this portfolio.`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Show warning if some duplicates were found
+      if (duplicates.length > 0) {
+        Alert.alert(
+          'Duplicates Found',
+          `${duplicates.length} duplicate transactions will be skipped. Importing ${uniqueTransactions.length} new transactions.`
+        );
+      }
+
+      // Calculate holdings from unique transactions only
+      const uniqueHoldings = calculateHoldingsFromTransactions(uniqueTransactions);
+      const resultingHoldingsFromUnique = Array.from(uniqueHoldings.entries()).map(
+        ([symbol, data]) => ({
+          symbol,
+          shares: data.shares,
+          avgCost: data.totalCost / data.shares,
+          companyName: data.companyName,
+        })
+      );
+
       // Convert parsed data to transactions
       const currentRate = state.currencyRate.usdThb;
-      const transactions: Omit<Transaction, 'id'>[] = parsedData.map((row) => ({
+      const transactions: Omit<Transaction, 'id'>[] = uniqueTransactions.map((row) => ({
         portfolioId: selectedPortfolioId,
         symbol: row.symbol,
         companyName: row.companyName,
@@ -189,8 +238,8 @@ export default function ImportCSVScreen() {
       // Import transactions
       await importTransactions(transactions);
 
-      // Update holdings
-      for (const holdingData of resultingHoldings) {
+      // Update holdings using unique transactions only
+      for (const holdingData of resultingHoldingsFromUnique) {
         const existingHolding = state.holdings.find(
           (h) => h.symbol === holdingData.symbol && h.portfolioId === selectedPortfolioId
         );
@@ -227,9 +276,10 @@ export default function ImportCSVScreen() {
         }
       }
 
+      const skippedMsg = duplicates.length > 0 ? ` (${duplicates.length} duplicates skipped)` : '';
       Alert.alert(
         'Import Successful',
-        `Imported ${transactions.length} transactions and ${resultingHoldings.length} holdings`,
+        `Imported ${transactions.length} transactions and ${resultingHoldingsFromUnique.length} holdings${skippedMsg}`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
