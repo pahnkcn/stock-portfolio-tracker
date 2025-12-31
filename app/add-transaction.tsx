@@ -383,18 +383,15 @@ export default function AddTransactionScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex1}
       >
-        <ScrollView 
-          style={styles.flex1} 
+        <ScrollView
+          style={styles.flex1}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.cancelButton}
-            >
-              <Text style={[styles.cancelText, { color: colors.primary }]}>Cancel</Text>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Text style={[styles.backText, { color: colors.primary }]}>Cancel</Text>
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>
               Add Transaction
@@ -743,28 +740,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
     paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    paddingVertical: 8,
+    marginBottom: 16,
   },
-  cancelButton: {
-    padding: 8,
+  backButton: {
+    paddingVertical: 8,
+    paddingRight: 8,
   },
-  cancelText: {
+  backText: {
     fontSize: 16,
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
   },
   headerSpacer: {
-    width: 60,
+    width: 50,
   },
   toggleContainer: {
     flexDirection: 'row',

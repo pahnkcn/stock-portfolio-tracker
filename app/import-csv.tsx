@@ -248,7 +248,7 @@ export default function ImportCSVScreen() {
   };
 
   return (
-    <ScreenContainer edges={['left', 'right', 'bottom']}>
+    <ScreenContainer edges={['top', 'left', 'right', 'bottom']}>
       {/* Hidden file input for Web */}
       {Platform.OS === 'web' && (
         <input
@@ -262,15 +262,19 @@ export default function ImportCSVScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} className="px-5">
         {/* Header */}
-        <View className="flex-row items-center py-4">
-          <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <Text style={{ color: colors.tint, fontSize: 16 }}>← Back</Text>
+        <View className="flex-row items-center py-2 mb-4">
+          <TouchableOpacity onPress={() => router.back()} className="py-2 pr-2">
+            <Text style={{ color: colors.primary, fontSize: 16 }}>Cancel</Text>
           </TouchableOpacity>
-          <Text className="text-foreground text-xl font-bold flex-1">Import CSV</Text>
-          {isParsed && (
-            <TouchableOpacity onPress={handleReset}>
-              <Text style={{ color: colors.error }}>Reset</Text>
+          <Text className="text-foreground text-lg font-semibold flex-1 text-center">
+            Import CSV
+          </Text>
+          {isParsed ? (
+            <TouchableOpacity onPress={handleReset} className="py-2 pl-2">
+              <Text style={{ color: colors.error, fontSize: 14 }}>Reset</Text>
             </TouchableOpacity>
+          ) : (
+            <View style={{ width: 50 }} />
           )}
         </View>
 

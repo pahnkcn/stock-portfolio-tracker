@@ -95,21 +95,19 @@ export default function RootLayout() {
                 title: 'Stock Detail',
               }} 
             />
-            <Stack.Screen 
-              name="add-transaction" 
-              options={{ 
-                headerShown: true,
-                title: 'Add Transaction',
+            <Stack.Screen
+              name="add-transaction"
+              options={{
+                headerShown: false,
                 presentation: 'modal',
-              }} 
+              }}
             />
-            <Stack.Screen 
-              name="import-csv" 
-              options={{ 
-                headerShown: true,
-                title: 'Import CSV',
+            <Stack.Screen
+              name="import-csv"
+              options={{
+                headerShown: false,
                 presentation: 'modal',
-              }} 
+              }}
             />
           </Stack>
           <StatusBar style="auto" />

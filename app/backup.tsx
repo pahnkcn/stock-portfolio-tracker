@@ -203,7 +203,7 @@ export default function BackupScreen() {
   const summary = previewData ? getBackupSummary(previewData) : null;
 
   return (
-    <ScreenContainer edges={['left', 'right', 'bottom']}>
+    <ScreenContainer edges={['top', 'left', 'right', 'bottom']}>
       {/* Hidden file input for Web */}
       {Platform.OS === 'web' && (
         <input
@@ -219,9 +219,12 @@ export default function BackupScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={{ color: colors.primary, fontSize: 16 }}>← Back</Text>
+            <Text style={[styles.backText, { color: colors.primary }]}>Cancel</Text>
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.foreground }]}>Backup & Restore</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+            Backup & Restore
+          </Text>
+          <View style={styles.headerSpacer} />
         </View>
 
         {!previewData ? (
@@ -395,20 +398,30 @@ export default function BackupScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    paddingVertical: 8,
+    marginBottom: 16,
   },
   backButton: {
-    marginRight: 16,
+    paddingVertical: 8,
+    paddingRight: 8,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
+  backText: {
+    fontSize: 16,
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  headerSpacer: {
+    width: 50,
   },
   card: {
     borderRadius: 20,
