@@ -33,6 +33,7 @@ type AppAction =
   | { type: 'ADD_TRANSACTIONS'; payload: Transaction[] }
   | { type: 'UPDATE_TRANSACTION'; payload: { id: string; updates: Partial<Transaction> } }
   | { type: 'DELETE_TRANSACTION'; payload: string }
+  | { type: 'DELETE_TRANSACTIONS'; payload: string[] }
   | { type: 'SET_STOCK_QUOTES'; payload: Record<string, StockQuote> }
   | { type: 'UPDATE_STOCK_QUOTE'; payload: StockQuote }
   | { type: 'SET_CURRENCY_RATE'; payload: CurrencyRate }
@@ -117,7 +118,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
     
     case 'DELETE_TRANSACTION':
       return { ...state, transactions: state.transactions.filter(t => t.id !== action.payload) };
-    
+
+    case 'DELETE_TRANSACTIONS':
+      return { ...state, transactions: state.transactions.filter(t => !action.payload.includes(t.id)) };
+
     case 'SET_STOCK_QUOTES':
       return { ...state, stockQuotes: action.payload };
     
@@ -154,6 +158,7 @@ interface AppContextType {
   addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction>;
   updateTransaction: (id: string, updates: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
+  deleteMultipleTransactions: (ids: string[]) => Promise<void>;
   importTransactions: (transactions: Omit<Transaction, 'id'>[]) => Promise<void>;
   // Settings actions
   updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
@@ -394,6 +399,104 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const deleteMultipleTransactions = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+
+    const transactions = await storage.getTransactions();
+    const transactionsToDelete = transactions.filter(t => ids.includes(t.id));
+
+    if (transactionsToDelete.length === 0) return;
+
+    // Get unique symbol/portfolioId combinations that need recalculation
+    const affectedSymbols = new Map<string, { symbol: string; portfolioId: string }>();
+    for (const tx of transactionsToDelete) {
+      const key = `${tx.symbol}-${tx.portfolioId}`;
+      if (!affectedSymbols.has(key)) {
+        affectedSymbols.set(key, { symbol: tx.symbol, portfolioId: tx.portfolioId });
+      }
+    }
+
+    // Delete transactions
+    const filteredTransactions = transactions.filter(t => !ids.includes(t.id));
+    await storage.saveTransactions(filteredTransactions);
+
+    // Dispatch delete for all transactions at once
+    dispatch({ type: 'DELETE_TRANSACTIONS', payload: ids });
+
+    // Recalculate holdings for each affected symbol
+    const holdings = await storage.getHoldings();
+
+    for (const { symbol, portfolioId } of affectedSymbols.values()) {
+      const holding = holdings.find(h => h.symbol === symbol && h.portfolioId === portfolioId);
+
+      if (holding) {
+        const remainingTransactions = filteredTransactions.filter(
+          t => t.symbol === symbol && t.portfolioId === portfolioId
+        );
+
+        // Sort transactions by date for FIFO calculation
+        const sortedTxs = [...remainingTransactions].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+
+        // Separate BUY and SELL transactions
+        const buys = sortedTxs.filter(t => t.type === 'BUY');
+        const sells = sortedTxs.filter(t => t.type === 'SELL');
+
+        // Create buy lots with remaining shares (for FIFO matching)
+        const buyLots = buys.map(tx => ({
+          shares: tx.shares,
+          price: tx.price,
+          exchangeRate: tx.exchangeRate || 35,
+          remainingShares: tx.shares,
+        }));
+
+        // Apply FIFO: match sells against buys
+        let buyLotIndex = 0;
+        for (const sell of sells) {
+          let sellSharesRemaining = sell.shares;
+
+          while (sellSharesRemaining > 0 && buyLotIndex < buyLots.length) {
+            const buyLot = buyLots[buyLotIndex];
+
+            if (buyLot.remainingShares <= 0) {
+              buyLotIndex++;
+              continue;
+            }
+
+            const matchedShares = Math.min(sellSharesRemaining, buyLot.remainingShares);
+            buyLot.remainingShares -= matchedShares;
+            sellSharesRemaining -= matchedShares;
+
+            if (buyLot.remainingShares <= 0) {
+              buyLotIndex++;
+            }
+          }
+        }
+
+        // Calculate from remaining buy lots only
+        const remainingLots = buyLots.filter(lot => lot.remainingShares > 0);
+        const totalShares = remainingLots.reduce((sum, lot) => sum + lot.remainingShares, 0);
+        const totalCost = remainingLots.reduce((sum, lot) => sum + lot.remainingShares * lot.price, 0);
+        const totalCostThb = remainingLots.reduce(
+          (sum, lot) => sum + lot.remainingShares * lot.price * lot.exchangeRate,
+          0
+        );
+
+        const holdingUpdates = totalShares <= 0
+          ? { shares: 0, avgCost: 0, avgExchangeRate: 35 }
+          : {
+              shares: totalShares,
+              avgCost: totalCost / totalShares,
+              avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
+            };
+
+        await storage.updateHolding(holding.id, holdingUpdates);
+        dispatch({ type: 'UPDATE_HOLDING', payload: { id: holding.id, updates: holdingUpdates } });
+      }
+    }
+  }, []);
+
   const importTransactions = useCallback(async (txsData: Omit<Transaction, 'id'>[]) => {
     const transactions: Transaction[] = txsData.map(tx => ({
       ...tx,
@@ -516,6 +619,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addTransaction,
     updateTransaction,
     deleteTransaction,
+    deleteMultipleTransactions,
     importTransactions,
     updateSettings,
     updateCurrencyRate,

@@ -20,12 +20,20 @@ interface TransactionCardProps {
   transaction: Transaction;
   showEditButton?: boolean;
   index?: number;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onLongPress?: () => void;
+  onSelect?: () => void;
 }
 
 export function TransactionCard({
   transaction,
   showEditButton = true,
   index = 0,
+  isSelectionMode = false,
+  isSelected = false,
+  onLongPress,
+  onSelect,
 }: TransactionCardProps) {
   const colors = useColors();
   const router = useRouter();
@@ -64,18 +72,44 @@ export function TransactionCard({
     router.push(`/edit-transaction?id=${transaction.id}` as any);
   };
 
+  const handlePress = () => {
+    if (isSelectionMode && onSelect) {
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      onSelect();
+    } else {
+      handleEdit();
+    }
+  };
+
+  const handleLongPress = () => {
+    if (onLongPress) {
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      onLongPress();
+    }
+  };
+
   return (
     <Animated.View style={animatedStyle}>
       <Pressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        onPress={handleEdit}
-        disabled={!showEditButton}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        delayLongPress={500}
+        disabled={!showEditButton && !isSelectionMode}
       >
         <View
           style={[
             styles.cardContainer,
-            { backgroundColor: colors.surface, borderColor: colors.border },
+            {
+              backgroundColor: colors.surface,
+              borderColor: isSelected ? colors.primary : colors.border,
+              borderWidth: isSelected ? 2 : 1,
+            },
           ]}
         >
           <View style={styles.topRow}>
@@ -106,13 +140,27 @@ export function TransactionCard({
                 <Text style={[styles.amountText, { color: colors.foreground }]}>
                   {formatCurrency(transaction.netAmount, 'USD')}
                 </Text>
-                {showEditButton && (
+                {isSelectionMode ? (
+                  <View
+                    style={[
+                      styles.checkbox,
+                      {
+                        backgroundColor: isSelected ? colors.primary : 'transparent',
+                        borderColor: isSelected ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    {isSelected && (
+                      <IconSymbol name="checkmark" size={14} color="#fff" />
+                    )}
+                  </View>
+                ) : showEditButton ? (
                   <View
                     style={[styles.editButton, { backgroundColor: colors.primary + '15' }]}
                   >
                     <IconSymbol name="pencil" size={14} color={colors.primary} />
                   </View>
-                )}
+                ) : null}
               </View>
               <Text style={[styles.dateText, { color: colors.muted }]}>
                 {formatDate(transaction.date)}
@@ -227,6 +275,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
