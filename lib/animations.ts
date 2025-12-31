@@ -42,6 +42,20 @@ export const GENTLE_SPRING: WithSpringConfig = {
   mass: 1,
 };
 
+// Snappy spring for buttons
+export const SNAPPY_SPRING: WithSpringConfig = {
+  damping: 15,
+  stiffness: 200,
+  mass: 1,
+};
+
+// Tight spring for gestures
+export const TIGHT_SPRING: WithSpringConfig = {
+  damping: 20,
+  stiffness: 300,
+  mass: 1,
+};
+
 // Animation helpers
 export const fadeIn = (delay = 0) => {
   'worklet';

@@ -1,8 +1,8 @@
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { AnimatedTabBar } from "@/components/ui/AnimatedTabBar";
 import { Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 
@@ -14,18 +14,10 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      tabBar={(props) => <AnimatedTabBar {...props} />}
       screenOptions={{
         tabBarActiveTintColor: colors.tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarStyle: {
-          paddingTop: 8,
-          paddingBottom: bottomPadding,
-          height: tabBarHeight,
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          borderTopWidth: 0.5,
-        },
       }}
     >
       <Tabs.Screen

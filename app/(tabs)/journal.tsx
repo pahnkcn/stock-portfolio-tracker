@@ -90,17 +90,31 @@ export default function JournalScreen() {
         {/* Summary Stats */}
         <View className="px-5 py-3">
           <View className="flex-row">
-            <View className="flex-1 bg-success/10 rounded-xl p-3 mr-2">
-              <Text className="text-success text-xs font-medium">Buy Orders</Text>
-              <Text className="text-success text-lg font-bold">{summaryStats.buyCount}</Text>
-              <Text className="text-success/70 text-xs">
+            <View
+              className="flex-1 rounded-xl p-3 mr-2"
+              style={{
+                backgroundColor: colors.success + '15',
+                borderWidth: 1,
+                borderColor: colors.success,
+              }}
+            >
+              <Text style={{ color: colors.success }} className="text-xs font-medium">Buy Orders</Text>
+              <Text style={{ color: colors.success }} className="text-xl font-bold">{summaryStats.buyCount}</Text>
+              <Text style={{ color: colors.success }} className="text-sm font-semibold">
                 ${summaryStats.totalBuyAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
               </Text>
             </View>
-            <View className="flex-1 bg-error/10 rounded-xl p-3 ml-2">
-              <Text className="text-error text-xs font-medium">Sell Orders</Text>
-              <Text className="text-error text-lg font-bold">{summaryStats.sellCount}</Text>
-              <Text className="text-error/70 text-xs">
+            <View
+              className="flex-1 rounded-xl p-3 ml-2"
+              style={{
+                backgroundColor: colors.error + '15',
+                borderWidth: 1,
+                borderColor: colors.error,
+              }}
+            >
+              <Text style={{ color: colors.error }} className="text-xs font-medium">Sell Orders</Text>
+              <Text style={{ color: colors.error }} className="text-xl font-bold">{summaryStats.sellCount}</Text>
+              <Text style={{ color: colors.error }} className="text-sm font-semibold">
                 ${summaryStats.totalSellAmount.toLocaleString('en-US', { maximumFractionDigits: 2 })}
               </Text>
             </View>
@@ -164,7 +178,7 @@ export default function JournalScreen() {
               <Text className="text-muted text-center mb-2">No transactions found</Text>
               <Text className="text-muted text-center text-sm">
                 {searchQuery || filterType !== 'ALL'
-                  ? 'Try adjusting your filters'
+                  ? 'Try adjusting your fiext style={{ color: colors.error }} className="texlters'
                   : 'Add transactions or import from CSV'}
               </Text>
             </View>

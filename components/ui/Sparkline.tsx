@@ -3,8 +3,11 @@ import { View, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
+  useAnimatedStyle,
   withTiming,
   withDelay,
+  withSpring,
+  Easing,
 } from 'react-native-reanimated';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useColors } from '@/hooks/use-colors';
@@ -32,6 +35,8 @@ export function Sparkline({
 }: SparklineProps) {
   const colors = useColors();
   const progress = useSharedValue(0);
+  const scale = useSharedValue(animated ? 0.9 : 1);
+  const opacity = useSharedValue(animated ? 0 : 1);
 
   // Determine color based on trend
   const isPositive = data.length >= 2 ? data[data.length - 1] >= data[0] : true;
@@ -39,11 +44,24 @@ export function Sparkline({
 
   useEffect(() => {
     if (animated) {
-      progress.value = withDelay(100, withTiming(1, { duration: 800 }));
+      // Entry animation
+      scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+      opacity.value = withTiming(1, { duration: 200 });
+
+      // Line draw animation
+      progress.value = withDelay(
+        100,
+        withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) })
+      );
     } else {
       progress.value = 1;
     }
   }, [animated]);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
 
   if (data.length < 2) {
     return <View style={{ width, height }} />;
@@ -79,7 +97,7 @@ export function Sparkline({
   });
 
   return (
-    <View style={[styles.container, { width, height }]}>
+    <Animated.View style={[styles.container, { width, height }, containerStyle]}>
       <Svg width={width} height={height}>
         {showGradient && (
           <Defs>
@@ -89,14 +107,14 @@ export function Sparkline({
             </LinearGradient>
           </Defs>
         )}
-        
+
         {showGradient && (
           <Path
             d={fillPathD}
             fill="url(#sparklineGradient)"
           />
         )}
-        
+
         <AnimatedPath
           d={pathD}
           stroke={lineColor}
@@ -108,7 +126,7 @@ export function Sparkline({
           animatedProps={animatedProps}
         />
       </Svg>
-    </View>
+    </Animated.View>
   );
 }
 

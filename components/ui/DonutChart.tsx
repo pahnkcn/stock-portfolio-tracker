@@ -3,9 +3,14 @@ import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedProps,
+  useAnimatedStyle,
   withTiming,
   withDelay,
+  withSpring,
+  withSequence,
   Easing,
+  interpolate,
+  Extrapolation,
 } from 'react-native-reanimated';
 import Svg, { Circle, G } from 'react-native-svg';
 import { useColors } from '@/hooks/use-colors';
@@ -37,6 +42,9 @@ export function DonutChart({
 }: DonutChartProps) {
   const colors = useColors();
   const progress = useSharedValue(0);
+  const scale = useSharedValue(animated ? 0.8 : 1);
+  const opacity = useSharedValue(animated ? 0 : 1);
+  const centerOpacity = useSharedValue(0);
 
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -44,14 +52,32 @@ export function DonutChart({
 
   useEffect(() => {
     if (animated) {
+      // Entry animation
+      scale.value = withSpring(1, { damping: 12, stiffness: 100 });
+      opacity.value = withTiming(1, { duration: 300 });
+
+      // Chart draw animation
       progress.value = withDelay(
         200,
         withTiming(1, { duration: 1000, easing: Easing.out(Easing.cubic) })
       );
+
+      // Center content fade in
+      centerOpacity.value = withDelay(800, withTiming(1, { duration: 400 }));
     } else {
       progress.value = 1;
+      centerOpacity.value = 1;
     }
   }, [animated]);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  const centerStyle = useAnimatedStyle(() => ({
+    opacity: centerOpacity.value,
+  }));
 
   // Calculate total and percentages
   const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -72,7 +98,7 @@ export function DonutChart({
   });
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
+    <Animated.View style={[styles.container, { width: size, height: size }, containerStyle]}>
       <Svg width={size} height={size}>
         {/* Background circle */}
         <Circle
@@ -83,7 +109,7 @@ export function DonutChart({
           strokeWidth={strokeWidth}
           fill="none"
         />
-        
+
         {/* Data segments */}
         <G rotation={-90} origin={`${center}, ${center}`}>
           {segments.map((segment, index) => (
@@ -104,10 +130,10 @@ export function DonutChart({
           ))}
         </G>
       </Svg>
-      
+
       {/* Center content */}
       {(centerLabel || centerValue) && (
-        <View style={styles.centerContent}>
+        <Animated.View style={[styles.centerContent, centerStyle]}>
           {centerValue && (
             <Text style={[styles.centerValue, { color: colors.foreground }]}>
               {centerValue}
@@ -118,9 +144,9 @@ export function DonutChart({
               {centerLabel}
             </Text>
           )}
-        </View>
+        </Animated.View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 

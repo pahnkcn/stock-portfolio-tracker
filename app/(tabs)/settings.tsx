@@ -48,14 +48,11 @@ const API_KEYS_CONFIG: ApiKeyConfig[] = [
 export default function SettingsScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { state, updateSettings, updateCurrencyRate } = useApp();
+  const { state, updateSettings } = useApp();
   const { colorScheme, setColorScheme } = useThemeContext();
   
   const [apiKeys, setApiKeys] = useState<ApiKeys>(state.settings.apiKeys || {});
   const [showInTHB, setShowInTHB] = useState(state.settings.showInTHB);
-  const [manualRate, setManualRate] = useState(
-    state.settings.manualExchangeRate?.toString() || ''
-  );
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -63,9 +60,8 @@ export default function SettingsScreen() {
   useEffect(() => {
     const keysChanged = JSON.stringify(apiKeys) !== JSON.stringify(state.settings.apiKeys || {});
     const thbChanged = showInTHB !== state.settings.showInTHB;
-    const rateChanged = manualRate !== (state.settings.manualExchangeRate?.toString() || '');
-    setHasChanges(keysChanged || thbChanged || rateChanged);
-  }, [apiKeys, showInTHB, manualRate, state.settings]);
+    setHasChanges(keysChanged || thbChanged);
+  }, [apiKeys, showInTHB, state.settings]);
 
   const handleApiKeyChange = (key: keyof ApiKeys, value: string) => {
     setApiKeys(prev => ({
@@ -81,18 +77,12 @@ export default function SettingsScreen() {
       await updateSettings({
         apiKeys,
         showInTHB,
-        manualExchangeRate: manualRate ? parseFloat(manualRate) : undefined,
       });
-
-      // Update currency rate if manual rate is set
-      if (manualRate) {
-        await updateCurrencyRate(parseFloat(manualRate));
-      }
 
       if (Platform.OS !== 'web') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      
+
       Alert.alert('Success', 'Settings saved successfully');
       setHasChanges(false);
     } catch (error) {
@@ -243,30 +233,27 @@ export default function SettingsScreen() {
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             Exchange Rate
           </Text>
-          
+
           <Animated.View
             entering={FadeInDown.delay(250).duration(300)}
             style={[styles.settingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
           >
             <Text style={[styles.settingName, { color: colors.foreground }]}>
-              Manual USD/THB Rate
+              USD/THB Rate
             </Text>
             <Text style={[styles.settingDescription, { color: colors.foreground, opacity: 0.6 }]}>
-              Override the automatic exchange rate. Leave empty to use real-time rate.
+              Real-time exchange rate from market data.
             </Text>
-            
+
             <View style={styles.rateInputContainer}>
               <Text style={[styles.ratePrefix, { color: colors.foreground }]}>1 USD =</Text>
               <TextInput
-                value={manualRate}
-                onChangeText={setManualRate}
-                placeholder={state.currencyRate.usdThb.toFixed(2)}
-                placeholderTextColor={colors.muted}
-                keyboardType="decimal-pad"
+                value={state.currencyRate.usdThb.toFixed(2)}
+                editable={false}
                 style={[
                   styles.rateInput,
-                  { 
-                    backgroundColor: colors.background, 
+                  {
+                    backgroundColor: colors.border + '30',
                     color: colors.foreground,
                     borderColor: colors.border,
                   },
@@ -274,10 +261,6 @@ export default function SettingsScreen() {
               />
               <Text style={[styles.rateSuffix, { color: colors.foreground }]}>THB</Text>
             </View>
-            
-            <Text style={[styles.currentRate, { color: colors.foreground, opacity: 0.5 }]}>
-              Current rate: ฿{state.currencyRate.usdThb.toFixed(2)}
-            </Text>
           </Animated.View>
         </View>
 
@@ -527,10 +510,6 @@ const styles = StyleSheet.create({
   rateSuffix: {
     fontSize: 15,
     marginLeft: 8,
-  },
-  currentRate: {
-    fontSize: 12,
-    marginTop: 8,
   },
   aboutHeader: {
     alignItems: 'center',
