@@ -360,18 +360,20 @@ export default function StockDetailScreen() {
                   <Text className="text-muted">Low</Text>
                   <Text className="text-foreground font-medium">${quote.low.toFixed(2)}</Text>
                 </View>
-                <View className="flex-row justify-between p-4 border-b border-border">
+                <View className={`flex-row justify-between p-4 ${quote.volume > 0 ? 'border-b border-border' : ''}`}>
                   <Text className="text-muted">Previous Close</Text>
                   <Text className="text-foreground font-medium">
                     ${quote.previousClose.toFixed(2)}
                   </Text>
                 </View>
-                <View className="flex-row justify-between p-4">
-                  <Text className="text-muted">Volume</Text>
-                  <Text className="text-foreground font-medium">
-                    {formatCompactNumber(quote.volume)}
-                  </Text>
-                </View>
+                {quote.volume > 0 && (
+                  <View className="flex-row justify-between p-4">
+                    <Text className="text-muted">Volume</Text>
+                    <Text className="text-foreground font-medium">
+                      {formatCompactNumber(quote.volume)}
+                    </Text>
+                  </View>
+                )}
               </>
             ) : (
               <View className="p-4">
@@ -392,142 +394,162 @@ export default function StockDetailScreen() {
             {chartLoading && <ActivityIndicator size="small" color={colors.muted} />}
           </View>
           <View className="bg-surface rounded-xl border border-border overflow-hidden">
-            {/* RSI */}
-            <View className="flex-row justify-between p-4 border-b border-border">
-              <View>
-                <Text className="text-muted text-xs">RSI (14)</Text>
-                <Text
-                  style={{ color: getRSIColor(technicalIndicators.rsi) }}
-                  className="text-lg font-semibold"
-                >
-                  {technicalIndicators.rsi.toFixed(1)}
+            {chartLoading ? (
+              <View className="p-6 items-center">
+                <ActivityIndicator size="small" color={colors.muted} />
+                <Text className="text-muted text-sm mt-2">Loading chart data...</Text>
+              </View>
+            ) : !chart || !chart.prices.close.length ? (
+              <View className="p-5">
+                <Text className="text-muted text-center mb-2">
+                  Technical indicators unavailable
+                </Text>
+                <Text className="text-muted text-xs text-center">
+                  {!hasApiKey
+                    ? 'Configure API key in Settings to enable technical analysis'
+                    : 'Chart data not available. Try configuring Yahoo Finance API key for historical data.'}
                 </Text>
               </View>
-              <View
-                style={[
-                  styles.signalBadge,
-                  {
-                    backgroundColor:
-                      technicalIndicators.rsi >= 70
-                        ? colors.error + '20'
-                        : technicalIndicators.rsi <= 30
-                          ? colors.success + '20'
-                          : colors.muted + '20',
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    color:
-                      technicalIndicators.rsi >= 70
-                        ? colors.error
-                        : technicalIndicators.rsi <= 30
-                          ? colors.success
-                          : colors.muted,
-                  }}
-                  className="text-xs font-medium"
-                >
-                  {getRSISignal(technicalIndicators.rsi)}
-                </Text>
-              </View>
-            </View>
-
-            {/* MACD with Signal and Histogram */}
-            <View className="p-4 border-b border-border">
-              <View className="flex-row justify-between items-start mb-2">
-                <View>
-                  <Text className="text-muted text-xs">MACD (12, 26, 9)</Text>
-                  <Text className="text-foreground text-lg font-semibold">
-                    {technicalIndicators.macd.value.toFixed(2)}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.signalBadge,
-                    {
-                      backgroundColor:
-                        technicalIndicators.macd.histogram > 0
-                          ? colors.success + '20'
-                          : colors.error + '20',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={{
-                      color:
-                        technicalIndicators.macd.histogram > 0 ? colors.success : colors.error,
-                    }}
-                    className="text-xs font-medium"
+            ) : (
+              <>
+                {/* RSI */}
+                <View className="flex-row justify-between p-4 border-b border-border">
+                  <View>
+                    <Text className="text-muted text-xs">RSI (14)</Text>
+                    <Text
+                      style={{ color: getRSIColor(technicalIndicators.rsi) }}
+                      className="text-lg font-semibold"
+                    >
+                      {technicalIndicators.rsi.toFixed(1)}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.signalBadge,
+                      {
+                        backgroundColor:
+                          technicalIndicators.rsi >= 70
+                            ? colors.error + '20'
+                            : technicalIndicators.rsi <= 30
+                              ? colors.success + '20'
+                              : colors.muted + '20',
+                      },
+                    ]}
                   >
-                    {technicalIndicators.macd.histogram > 0 ? 'Bullish' : 'Bearish'}
-                  </Text>
+                    <Text
+                      style={{
+                        color:
+                          technicalIndicators.rsi >= 70
+                            ? colors.error
+                            : technicalIndicators.rsi <= 30
+                              ? colors.success
+                              : colors.muted,
+                      }}
+                      className="text-xs font-medium"
+                    >
+                      {getRSISignal(technicalIndicators.rsi)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <View className="flex-row justify-between">
-                <View>
-                  <Text className="text-muted text-xs">Signal</Text>
-                  <Text className="text-foreground font-medium">
-                    {technicalIndicators.macd.signal.toFixed(2)}
-                  </Text>
-                </View>
-                <View className="items-end">
-                  <Text className="text-muted text-xs">Histogram</Text>
-                  <Text
-                    style={{
-                      color:
-                        technicalIndicators.macd.histogram > 0 ? colors.success : colors.error,
-                    }}
-                    className="font-medium"
-                  >
-                    {technicalIndicators.macd.histogram > 0 ? '+' : ''}
-                    {technicalIndicators.macd.histogram.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-            </View>
 
-            {/* Moving Averages */}
-            <View className="p-4 border-b border-border">
-              <Text className="text-muted text-xs mb-2">Moving Averages</Text>
-              <View className="flex-row justify-between">
-                <View className="items-center">
-                  <Text className="text-muted text-xs">EMA 20</Text>
-                  <Text className="text-foreground font-medium">
-                    ${technicalIndicators.ema20.toFixed(2)}
-                  </Text>
+                {/* MACD with Signal and Histogram */}
+                <View className="p-4 border-b border-border">
+                  <View className="flex-row justify-between items-start mb-2">
+                    <View>
+                      <Text className="text-muted text-xs">MACD (12, 26, 9)</Text>
+                      <Text className="text-foreground text-lg font-semibold">
+                        {technicalIndicators.macd.value.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.signalBadge,
+                        {
+                          backgroundColor:
+                            technicalIndicators.macd.histogram > 0
+                              ? colors.success + '20'
+                              : colors.error + '20',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color:
+                            technicalIndicators.macd.histogram > 0 ? colors.success : colors.error,
+                        }}
+                        className="text-xs font-medium"
+                      >
+                        {technicalIndicators.macd.histogram > 0 ? 'Bullish' : 'Bearish'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <View>
+                      <Text className="text-muted text-xs">Signal</Text>
+                      <Text className="text-foreground font-medium">
+                        {technicalIndicators.macd.signal.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-muted text-xs">Histogram</Text>
+                      <Text
+                        style={{
+                          color:
+                            technicalIndicators.macd.histogram > 0 ? colors.success : colors.error,
+                        }}
+                        className="font-medium"
+                      >
+                        {technicalIndicators.macd.histogram > 0 ? '+' : ''}
+                        {technicalIndicators.macd.histogram.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-                <View className="items-center">
-                  <Text className="text-muted text-xs">EMA 50</Text>
-                  <Text className="text-foreground font-medium">
-                    ${technicalIndicators.ema50.toFixed(2)}
-                  </Text>
-                </View>
-                <View className="items-center">
-                  <Text className="text-muted text-xs">
-                    EMA 200{!technicalIndicators.dataQuality?.hasEnoughDataForEMA200 ? '*' : ''}
-                  </Text>
-                  <Text className="text-foreground font-medium">
-                    ${technicalIndicators.ema200.toFixed(2)}
-                  </Text>
-                </View>
-              </View>
-              {!technicalIndicators.dataQuality?.hasEnoughDataForEMA200 && (
-                <Text className="text-muted text-xs mt-2 italic">
-                  * Insufficient data for accurate EMA 200 (needs 200+ data points)
-                </Text>
-              )}
-            </View>
 
-            {/* ATR */}
-            <View className="flex-row justify-between p-4">
-              <View>
-                <Text className="text-muted text-xs">ATR (14)</Text>
-                <Text className="text-foreground text-lg font-semibold">
-                  ${technicalIndicators.atr.toFixed(2)}
-                </Text>
-              </View>
-              <Text className="text-muted text-xs self-end">Volatility indicator</Text>
-            </View>
+                {/* Moving Averages */}
+                <View className="p-4 border-b border-border">
+                  <Text className="text-muted text-xs mb-2">Moving Averages</Text>
+                  <View className="flex-row justify-between">
+                    <View className="items-center">
+                      <Text className="text-muted text-xs">EMA 20</Text>
+                      <Text className="text-foreground font-medium">
+                        ${technicalIndicators.ema20.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View className="items-center">
+                      <Text className="text-muted text-xs">EMA 50</Text>
+                      <Text className="text-foreground font-medium">
+                        ${technicalIndicators.ema50.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View className="items-center">
+                      <Text className="text-muted text-xs">
+                        EMA 200{!technicalIndicators.dataQuality?.hasEnoughDataForEMA200 ? '*' : ''}
+                      </Text>
+                      <Text className="text-foreground font-medium">
+                        ${technicalIndicators.ema200.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                  {!technicalIndicators.dataQuality?.hasEnoughDataForEMA200 && (
+                    <Text className="text-muted text-xs mt-2 italic">
+                      * Insufficient data for accurate EMA 200 (needs 200+ data points)
+                    </Text>
+                  )}
+                </View>
+
+                {/* ATR */}
+                <View className="flex-row justify-between p-4">
+                  <View>
+                    <Text className="text-muted text-xs">ATR (14)</Text>
+                    <Text className="text-foreground text-lg font-semibold">
+                      ${technicalIndicators.atr.toFixed(2)}
+                    </Text>
+                  </View>
+                  <Text className="text-muted text-xs self-end">Volatility indicator</Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
 
@@ -535,91 +557,111 @@ export default function StockDetailScreen() {
         <View className="px-5 py-4">
           <Text className="text-foreground text-lg font-semibold mb-3">Support & Resistance</Text>
           <View className="bg-surface rounded-xl border border-border overflow-hidden">
-            {/* Pivot Point */}
-            {supportResistance.pivot && (
-              <View className="p-4 border-b border-border bg-surface">
-                <View className="flex-row justify-between items-center">
-                  <View>
-                    <Text className="text-muted text-xs">Pivot Point</Text>
-                    <Text className="text-foreground text-lg font-semibold">
-                      ${supportResistance.pivot.toFixed(2)}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.signalBadge,
-                      { backgroundColor: colors.tint + '20' },
-                    ]}
-                  >
-                    <Text style={{ color: colors.tint }} className="text-xs font-medium">
-                      {quote?.currentPrice && supportResistance.pivot
-                        ? quote.currentPrice > supportResistance.pivot
-                          ? 'Above Pivot'
-                          : 'Below Pivot'
-                        : 'Key Level'}
-                    </Text>
-                  </View>
-                </View>
+            {chartLoading ? (
+              <View className="p-6 items-center">
+                <ActivityIndicator size="small" color={colors.muted} />
+                <Text className="text-muted text-sm mt-2">Calculating levels...</Text>
               </View>
+            ) : !chart || !chart.prices.close.length ? (
+              <View className="p-5">
+                <Text className="text-muted text-center mb-2">
+                  Support & resistance levels unavailable
+                </Text>
+                <Text className="text-muted text-xs text-center">
+                  {!hasApiKey
+                    ? 'Configure API key in Settings to enable S/R analysis'
+                    : 'Chart data not available. Try configuring Yahoo Finance API key for historical data.'}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Pivot Point */}
+                {supportResistance.pivot && (
+                  <View className="p-4 border-b border-border bg-surface">
+                    <View className="flex-row justify-between items-center">
+                      <View>
+                        <Text className="text-muted text-xs">Pivot Point</Text>
+                        <Text className="text-foreground text-lg font-semibold">
+                          ${supportResistance.pivot.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.signalBadge,
+                          { backgroundColor: colors.tint + '20' },
+                        ]}
+                      >
+                        <Text style={{ color: colors.tint }} className="text-xs font-medium">
+                          {quote?.currentPrice && supportResistance.pivot
+                            ? quote.currentPrice > supportResistance.pivot
+                              ? 'Above Pivot'
+                              : 'Below Pivot'
+                            : 'Key Level'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Resistance Levels */}
+                <View className="p-4 border-b border-border">
+                  <Text className="text-error text-xs font-medium mb-2">Resistance Levels</Text>
+                  {supportResistance.resistance.length > 0 ? (
+                    supportResistance.resistance.map((level, index) => (
+                      <View key={index} className="flex-row justify-between items-center mb-1">
+                        <Text className="text-foreground">${level.price.toFixed(2)}</Text>
+                        <View
+                          style={[
+                            styles.strengthBadge,
+                            {
+                              backgroundColor:
+                                level.strength === 'strong'
+                                  ? colors.error + '30'
+                                  : level.strength === 'moderate'
+                                    ? colors.error + '20'
+                                    : colors.error + '10',
+                            },
+                          ]}
+                        >
+                          <Text className="text-error text-xs capitalize">{level.strength}</Text>
+                        </View>
+                      </View>
+                    ))
+                  ) : (
+                    <Text className="text-muted text-xs">No resistance levels found</Text>
+                  )}
+                </View>
+
+                {/* Support Levels */}
+                <View className="p-4">
+                  <Text className="text-success text-xs font-medium mb-2">Support Levels</Text>
+                  {supportResistance.support.length > 0 ? (
+                    supportResistance.support.map((level, index) => (
+                      <View key={index} className="flex-row justify-between items-center mb-1">
+                        <Text className="text-foreground">${level.price.toFixed(2)}</Text>
+                        <View
+                          style={[
+                            styles.strengthBadge,
+                            {
+                              backgroundColor:
+                                level.strength === 'strong'
+                                  ? colors.success + '30'
+                                  : level.strength === 'moderate'
+                                    ? colors.success + '20'
+                                    : colors.success + '10',
+                            },
+                          ]}
+                        >
+                          <Text className="text-success text-xs capitalize">{level.strength}</Text>
+                        </View>
+                      </View>
+                    ))
+                  ) : (
+                    <Text className="text-muted text-xs">No support levels found</Text>
+                  )}
+                </View>
+              </>
             )}
-
-            {/* Resistance Levels */}
-            <View className="p-4 border-b border-border">
-              <Text className="text-error text-xs font-medium mb-2">Resistance Levels</Text>
-              {supportResistance.resistance.length > 0 ? (
-                supportResistance.resistance.map((level, index) => (
-                  <View key={index} className="flex-row justify-between items-center mb-1">
-                    <Text className="text-foreground">${level.price.toFixed(2)}</Text>
-                    <View
-                      style={[
-                        styles.strengthBadge,
-                        {
-                          backgroundColor:
-                            level.strength === 'strong'
-                              ? colors.error + '30'
-                              : level.strength === 'moderate'
-                                ? colors.error + '20'
-                                : colors.error + '10',
-                        },
-                      ]}
-                    >
-                      <Text className="text-error text-xs capitalize">{level.strength}</Text>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <Text className="text-muted text-xs">No resistance levels found</Text>
-              )}
-            </View>
-
-            {/* Support Levels */}
-            <View className="p-4">
-              <Text className="text-success text-xs font-medium mb-2">Support Levels</Text>
-              {supportResistance.support.length > 0 ? (
-                supportResistance.support.map((level, index) => (
-                  <View key={index} className="flex-row justify-between items-center mb-1">
-                    <Text className="text-foreground">${level.price.toFixed(2)}</Text>
-                    <View
-                      style={[
-                        styles.strengthBadge,
-                        {
-                          backgroundColor:
-                            level.strength === 'strong'
-                              ? colors.success + '30'
-                              : level.strength === 'moderate'
-                                ? colors.success + '20'
-                                : colors.success + '10',
-                        },
-                      ]}
-                    >
-                      <Text className="text-success text-xs capitalize">{level.strength}</Text>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <Text className="text-muted text-xs">No support levels found</Text>
-              )}
-            </View>
           </View>
         </View>
 

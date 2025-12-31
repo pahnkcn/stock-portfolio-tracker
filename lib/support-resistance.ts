@@ -624,7 +624,7 @@ export function clusterPriceLevels(
 
       return {
         price: cluster.center,
-        type: cluster.center < currentPrice ? 'support' : 'resistance',
+        type: (cluster.center < currentPrice ? 'support' : 'resistance') as 'support' | 'resistance',
         strength,
         source: 'Price Cluster',
         touches,
