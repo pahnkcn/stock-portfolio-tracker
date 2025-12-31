@@ -165,12 +165,10 @@ export default function EditTransactionScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
 
-      // Save transaction data before deleting for success modal and recalculation
+      // Save transaction data before deleting for success modal
       deletedTransactionRef.current = currentTransaction;
 
-      // Recalculate holdings BEFORE deleting (while we still have transaction reference)
-      await recalculateHoldingsForDelete();
-
+      // deleteTransaction now handles recalculating holdings automatically
       await deleteTransaction(id!);
 
       if (Platform.OS !== 'web') {
@@ -218,84 +216,6 @@ export default function EditTransactionScreen() {
     if (holding) {
       // Sort transactions by date for FIFO calculation
       const sortedTxs = [...allTransactions].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-
-      // Separate BUY and SELL transactions
-      const buys = sortedTxs.filter(t => t.type === 'BUY');
-      const sells = sortedTxs.filter(t => t.type === 'SELL');
-
-      // Create buy lots with remaining shares (for FIFO matching)
-      const buyLots = buys.map(tx => ({
-        shares: tx.shares,
-        price: tx.price,
-        exchangeRate: tx.exchangeRate || 35,
-        remainingShares: tx.shares,
-      }));
-
-      // Apply FIFO: match sells against buys
-      let buyLotIndex = 0;
-      for (const sell of sells) {
-        let sellSharesRemaining = sell.shares;
-
-        while (sellSharesRemaining > 0 && buyLotIndex < buyLots.length) {
-          const buyLot = buyLots[buyLotIndex];
-
-          if (buyLot.remainingShares <= 0) {
-            buyLotIndex++;
-            continue;
-          }
-
-          const matchedShares = Math.min(sellSharesRemaining, buyLot.remainingShares);
-          buyLot.remainingShares -= matchedShares;
-          sellSharesRemaining -= matchedShares;
-
-          if (buyLot.remainingShares <= 0) {
-            buyLotIndex++;
-          }
-        }
-      }
-
-      // Calculate from remaining buy lots only
-      const remainingLots = buyLots.filter(lot => lot.remainingShares > 0);
-      const totalShares = remainingLots.reduce((sum, lot) => sum + lot.remainingShares, 0);
-      const totalCost = remainingLots.reduce((sum, lot) => sum + lot.remainingShares * lot.price, 0);
-      const totalCostThb = remainingLots.reduce(
-        (sum, lot) => sum + lot.remainingShares * lot.price * lot.exchangeRate,
-        0
-      );
-
-      if (totalShares <= 0) {
-        // No shares left
-        await updateHolding(holding.id, {
-          shares: 0,
-          avgCost: 0,
-          avgExchangeRate: 35,
-        });
-      } else {
-        await updateHolding(holding.id, {
-          shares: totalShares,
-          avgCost: totalCost / totalShares,
-          avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
-        });
-      }
-    }
-  };
-
-  const recalculateHoldingsForDelete = async () => {
-    // Get all transactions for this symbol EXCLUDING the one being deleted
-    const remainingTransactions = state.transactions.filter(
-      t => t.symbol === currentTransaction.symbol && t.id !== id
-    );
-
-    // Find the holding for this symbol
-    const holding = state.holdings.find(
-      h => h.symbol === currentTransaction.symbol && h.portfolioId === currentTransaction.portfolioId
-    );
-
-    if (holding) {
-      // Sort transactions by date for FIFO calculation
-      const sortedTxs = [...remainingTransactions].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
 

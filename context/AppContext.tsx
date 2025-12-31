@@ -309,10 +309,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const deleteTransaction = useCallback(async (id: string) => {
+    // Get the transaction before deleting to know which holding to recalculate
     const transactions = await storage.getTransactions();
+    const transactionToDelete = transactions.find(t => t.id === id);
+
+    if (!transactionToDelete) {
+      return;
+    }
+
     const filteredTransactions = transactions.filter(t => t.id !== id);
     await storage.saveTransactions(filteredTransactions);
     dispatch({ type: 'DELETE_TRANSACTION', payload: id });
+
+    // Recalculate holdings for the affected symbol
+    const holdings = await storage.getHoldings();
+    const holding = holdings.find(
+      h => h.symbol === transactionToDelete.symbol && h.portfolioId === transactionToDelete.portfolioId
+    );
+
+    if (holding) {
+      const remainingTransactions = filteredTransactions.filter(
+        t => t.symbol === transactionToDelete.symbol && t.portfolioId === transactionToDelete.portfolioId
+      );
+
+      // Sort transactions by date for FIFO calculation
+      const sortedTxs = [...remainingTransactions].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+
+      // Separate BUY and SELL transactions
+      const buys = sortedTxs.filter(t => t.type === 'BUY');
+      const sells = sortedTxs.filter(t => t.type === 'SELL');
+
+      // Create buy lots with remaining shares (for FIFO matching)
+      const buyLots = buys.map(tx => ({
+        shares: tx.shares,
+        price: tx.price,
+        exchangeRate: tx.exchangeRate || 35,
+        remainingShares: tx.shares,
+      }));
+
+      // Apply FIFO: match sells against buys
+      let buyLotIndex = 0;
+      for (const sell of sells) {
+        let sellSharesRemaining = sell.shares;
+
+        while (sellSharesRemaining > 0 && buyLotIndex < buyLots.length) {
+          const buyLot = buyLots[buyLotIndex];
+
+          if (buyLot.remainingShares <= 0) {
+            buyLotIndex++;
+            continue;
+          }
+
+          const matchedShares = Math.min(sellSharesRemaining, buyLot.remainingShares);
+          buyLot.remainingShares -= matchedShares;
+          sellSharesRemaining -= matchedShares;
+
+          if (buyLot.remainingShares <= 0) {
+            buyLotIndex++;
+          }
+        }
+      }
+
+      // Calculate from remaining buy lots only
+      const remainingLots = buyLots.filter(lot => lot.remainingShares > 0);
+      const totalShares = remainingLots.reduce((sum, lot) => sum + lot.remainingShares, 0);
+      const totalCost = remainingLots.reduce((sum, lot) => sum + lot.remainingShares * lot.price, 0);
+      const totalCostThb = remainingLots.reduce(
+        (sum, lot) => sum + lot.remainingShares * lot.price * lot.exchangeRate,
+        0
+      );
+
+      const holdingUpdates = totalShares <= 0
+        ? { shares: 0, avgCost: 0, avgExchangeRate: 35 }
+        : {
+            shares: totalShares,
+            avgCost: totalCost / totalShares,
+            avgExchangeRate: totalCost > 0 ? totalCostThb / totalCost : 35,
+          };
+
+      await storage.updateHolding(holding.id, holdingUpdates);
+      dispatch({ type: 'UPDATE_HOLDING', payload: { id: holding.id, updates: holdingUpdates } });
+    }
   }, []);
 
   const importTransactions = useCallback(async (txsData: Omit<Transaction, 'id'>[]) => {
