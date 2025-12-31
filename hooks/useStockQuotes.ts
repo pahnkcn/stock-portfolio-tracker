@@ -118,26 +118,95 @@ async function fetchStockQuote(
 }
 
 /**
- * Fetch stock chart data directly from Yahoo Finance API
- *
- * @param period - Time period: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max'
- * For technical indicators, we need at least:
- * - RSI (14): 15+ data points
- * - MACD (26+9): 35+ data points
- * - EMA 200: 200+ data points
- * Recommended: '1y' (252 trading days) for comprehensive analysis
+ * Convert period string to Unix timestamps for Finnhub API
  */
-async function fetchStockChart(
+function getPeriodTimestamps(period: string): { from: number; to: number } {
+  const now = Math.floor(Date.now() / 1000);
+  const dayInSeconds = 86400;
+
+  const periodMap: Record<string, number> = {
+    '1d': 1 * dayInSeconds,
+    '5d': 5 * dayInSeconds,
+    '1mo': 30 * dayInSeconds,
+    '3mo': 90 * dayInSeconds,
+    '6mo': 180 * dayInSeconds,
+    '1y': 365 * dayInSeconds,
+    '2y': 730 * dayInSeconds,
+    '5y': 1825 * dayInSeconds,
+    'max': 3650 * dayInSeconds, // ~10 years
+  };
+
+  const seconds = periodMap[period] || periodMap['1y'];
+  return {
+    from: now - seconds,
+    to: now,
+  };
+}
+
+/**
+ * Fetch stock chart data from Finnhub API
+ * NOTE: Finnhub /stock/candle requires PREMIUM subscription!
+ * Free tier users will get 403 Forbidden or no_data response.
+ */
+async function fetchFinnhubChart(
   symbol: string,
-  yahooApiKey?: string,
-  period: string = '1y' // Default to 1 year for technical analysis
+  finnhubApiKey: string,
+  period: string = '1y'
 ): Promise<StockChartData | null> {
-  if (!yahooApiKey) {
+  try {
+    const { from, to } = getPeriodTimestamps(period);
+
+    // Finnhub candles API - resolution: D = daily
+    // WARNING: This endpoint requires Finnhub Premium subscription
+    const response = await fetch(
+      `https://finnhub.io/api/v1/stock/candle?symbol=${symbol.toUpperCase()}&resolution=D&from=${from}&to=${to}&token=${finnhubApiKey}`
+    );
+
+    if (!response.ok) {
+      if (response.status === 403 || response.status === 401) {
+        console.warn(`Finnhub chart for ${symbol}: Premium subscription required (status ${response.status})`);
+      } else {
+        console.warn(`Finnhub chart for ${symbol}: HTTP ${response.status}`);
+      }
+      return null;
+    }
+
+    const data = await response.json();
+
+    // Finnhub returns 's' = 'no_data' if no data available or access denied
+    if (data.s === 'no_data' || !data.c || data.c.length === 0) {
+      console.warn(`Finnhub chart for ${symbol}: No data available (status: ${data.s}). This may require Premium subscription.`);
+      return null;
+    }
+
+    console.log(`Finnhub chart for ${symbol}: ${data.c.length} data points (status: ${data.s})`);
+
+    return {
+      symbol: symbol.toUpperCase(),
+      timestamps: data.t || [],
+      prices: {
+        open: data.o || [],
+        high: data.h || [],
+        low: data.l || [],
+        close: data.c || [],
+        volume: data.v || [],
+      },
+    };
+  } catch (error) {
+    console.warn(`Finnhub chart failed for ${symbol}:`, error);
     return null;
   }
+}
 
+/**
+ * Fetch stock chart data from Yahoo Finance API (via RapidAPI)
+ */
+async function fetchYahooChart(
+  symbol: string,
+  yahooApiKey: string,
+  period: string = '1y'
+): Promise<StockChartData | null> {
   try {
-    // Use period parameter to get more historical data
     const response = await fetch(
       `https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/history?symbol=${symbol.toUpperCase()}&interval=1d&diffandsplits=false&period=${period}`,
       {
@@ -150,12 +219,14 @@ async function fetchStockChart(
     );
 
     if (!response.ok) {
+      console.warn(`Yahoo chart for ${symbol}: HTTP ${response.status}`);
       return null;
     }
 
     const data = await response.json();
 
     if (!data?.body) {
+      console.warn(`Yahoo chart for ${symbol}: No body in response`);
       return null;
     }
 
@@ -180,15 +251,73 @@ async function fetchStockChart(
       }
     });
 
+    if (prices.close.length === 0) {
+      console.warn(`Yahoo chart for ${symbol}: No price data parsed from response`);
+      return null;
+    }
+
+    console.log(`Yahoo chart for ${symbol}: ${prices.close.length} data points`);
+
     return {
       symbol: symbol.toUpperCase(),
       timestamps,
       prices,
     };
   } catch (error) {
-    console.error(`Error fetching chart for ${symbol}:`, error);
+    console.warn(`Yahoo chart failed for ${symbol}:`, error);
     return null;
   }
+}
+
+/**
+ * Fetch stock chart data - tries Yahoo Finance first, then Finnhub as fallback
+ *
+ * @param period - Time period: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | 'max'
+ * For technical indicators, we need at least:
+ * - RSI (14): 15+ data points
+ * - MACD (26+9): 35+ data points
+ * - EMA 200: 200+ data points
+ * Recommended: '1y' (252 trading days) for comprehensive analysis
+ *
+ * NOTE: Finnhub /stock/candle requires PREMIUM subscription!
+ * For free tier, only Yahoo Finance (RapidAPI) will work for chart data.
+ */
+async function fetchStockChart(
+  symbol: string,
+  yahooApiKey?: string,
+  finnhubApiKey?: string,
+  period: string = '1y'
+): Promise<StockChartData | null> {
+  console.log(`Fetching chart for ${symbol}, period: ${period}, Yahoo key: ${!!yahooApiKey}, Finnhub key: ${!!finnhubApiKey}`);
+
+  // Try Yahoo Finance first (if API key available)
+  if (yahooApiKey) {
+    const yahooResult = await fetchYahooChart(symbol, yahooApiKey, period);
+    if (yahooResult && yahooResult.prices.close.length > 0) {
+      return yahooResult;
+    }
+  }
+
+  // Try Finnhub as fallback (if API key available)
+  // NOTE: Finnhub /stock/candle requires Premium - free tier will fail
+  if (finnhubApiKey) {
+    console.log(`Trying Finnhub for ${symbol} (note: requires Premium subscription for /stock/candle)`);
+    const finnhubResult = await fetchFinnhubChart(symbol, finnhubApiKey, period);
+    if (finnhubResult && finnhubResult.prices.close.length > 0) {
+      return finnhubResult;
+    }
+  }
+
+  // No data available
+  if (!yahooApiKey && !finnhubApiKey) {
+    console.warn(`No chart data for ${symbol}: No API keys configured`);
+  } else if (!yahooApiKey && finnhubApiKey) {
+    console.warn(`No chart data for ${symbol}: Finnhub free tier does not support /stock/candle. Configure Yahoo Finance API key for chart data.`);
+  } else {
+    console.warn(`No chart data available for ${symbol}`);
+  }
+
+  return null;
 }
 
 /**
@@ -341,7 +470,8 @@ export function useStockChart(
   const [error, setError] = useState<Error | null>(null);
 
   const yahooApiKey = state.settings.apiKeys?.yahooFinance;
-  const hasApiKey = !!yahooApiKey;
+  const finnhubApiKey = state.settings.apiKeys?.finnhub;
+  const hasApiKey = !!(yahooApiKey || finnhubApiKey);
 
   const refresh = useCallback(async () => {
     if (!hasApiKey || !symbol) {
@@ -353,7 +483,8 @@ export function useStockChart(
 
     try {
       // Pass the range/period parameter to fetch enough data for technical analysis
-      const result = await fetchStockChart(symbol, yahooApiKey, range);
+      // Uses Yahoo Finance first, Finnhub as fallback
+      const result = await fetchStockChart(symbol, yahooApiKey, finnhubApiKey, range);
       setChart(result);
       return result;
     } catch (err) {
@@ -362,7 +493,7 @@ export function useStockChart(
     } finally {
       setIsLoading(false);
     }
-  }, [symbol, yahooApiKey, hasApiKey, range]);
+  }, [symbol, yahooApiKey, finnhubApiKey, hasApiKey, range]);
 
   return {
     chart,
